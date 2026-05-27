@@ -1782,7 +1782,15 @@ function SettingsContent({
     )
   }
   if (screenType === 'jongmok') {
-    return <JongmokMappingView rows={settings.jongmokMap ?? []} search={search} onSave={(rows) => onSaveSetting('jongmokMap', rows)} />
+    return (
+      <SettingsDatasetView
+        title={tabLabel}
+        rows={settings.jongmokMap ?? []}
+        search={search}
+        preferredColumns={preferredColumnsForSetting('jongmokMap')}
+        {...editableProps('jongmokMap', tabLabel)}
+      />
+    )
   }
   if (dataKey && dataKey !== 'standardColumns' && settings[dataKey]) {
     return (
@@ -2193,104 +2201,6 @@ function stripSettingsMeta(row: NoticeRow) {
     clean[key] = value
   }
   return clean
-}
-
-function JongmokMappingView({
-  rows,
-  search,
-  onSave,
-}: {
-  rows: NoticeRow[]
-  search: string
-  onSave: (rows: NoticeRow[]) => Promise<NoticeRow[]>
-}) {
-  const [selectedId, setSelectedId] = useState('')
-  const [targetValue, setTargetValue] = useState('')
-  const [status, setStatus] = useState('상호진출_상대종목을 선택해서 수정하세요.')
-  const crossRows = useMemo(() => rows.filter((row) => valueToText(row['상호진출_상대종목']).trim()), [rows])
-  const selectedRow = rows.find((row) => valueToText(row.id) === selectedId) ?? crossRows[0] ?? rows[0]
-  const counts = useMemo(() => {
-    const total = rows.length
-    const cross = crossRows.length
-    const excluded = rows.filter((row) => valueToText(row['단독평가_제외']) === '1').length
-    const groups = new Set(rows.map((row) => valueToText(row['일반_기타_전문']).trim()).filter(Boolean)).size
-    return { total, cross, excluded, groups }
-  }, [crossRows.length, rows])
-
-  useEffect(() => {
-    if (!selectedRow) return
-    setSelectedId(valueToText(selectedRow.id))
-    setTargetValue(valueToText(selectedRow['상호진출_상대종목']))
-  }, [selectedRow])
-
-  async function saveCrossTarget() {
-    if (!selectedId) return
-    const nextRows = rows.map((row) => (valueToText(row.id) === selectedId ? { ...row, 상호진출_상대종목: targetValue } : row))
-    const saved = await onSave(nextRows)
-    setStatus(`상호진출_상대종목 저장 완료: ${valueToText(selectedRow?.업종) || selectedId} (${saved.length.toLocaleString()}행)`)
-  }
-
-  return (
-    <div className="settings-stack">
-      <div className="metrics">
-        <div><strong>{counts.total.toLocaleString()}</strong><span>종목매핑 전체</span></div>
-        <div><strong>{counts.cross.toLocaleString()}</strong><span>상호진출 설정</span></div>
-        <div><strong>{counts.excluded.toLocaleString()}</strong><span>단독평가 제외</span></div>
-        <div><strong>{counts.groups.toLocaleString()}</strong><span>건설유형</span></div>
-      </div>
-
-      <section className="editor-panel jongmok-cross-editor">
-        <div className="section-head">
-          <div>
-            <h2>상호진출_상대종목 관리</h2>
-            <span>{status}</span>
-          </div>
-          <div className="section-actions">
-            <button type="button" onClick={saveCrossTarget}>상호진출 저장</button>
-          </div>
-        </div>
-        <div className="editor-grid">
-          <label className="wide-field">
-            <span>종목 선택</span>
-            <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-              {rows.map((row) => (
-                <option key={valueToText(row.id)} value={valueToText(row.id)}>
-                  {valueToText(row.id)} · {valueToText(row['일반_기타_전문']) || '미분류'} · {valueToText(row.업종) || valueToText(row['원본 (등록증 표기)'])}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>업종</span>
-            <input value={valueToText(selectedRow?.업종)} readOnly />
-          </label>
-          <label>
-            <span>주력업종</span>
-            <input value={valueToText(selectedRow?.주력업종)} readOnly />
-          </label>
-          <label className="wide-field">
-            <span>상호진출_상대종목</span>
-            <textarea
-              value={targetValue}
-              onChange={(event) => {
-                setTargetValue(event.target.value)
-                setStatus('변경됨. 상호진출 저장을 누르면 종목매핑에 반영됩니다.')
-              }}
-              placeholder="예: 실내건축,금속창호지붕,도장습식방수석공"
-            />
-          </label>
-        </div>
-      </section>
-
-      <SettingsDatasetView
-        title="종목매핑"
-        rows={rows}
-        search={search}
-        preferredColumns={preferredColumnsForSetting('jongmokMap')}
-        onSaveRows={onSave}
-      />
-    </div>
-  )
 }
 
 const parserRuleEditFields = [
@@ -2810,6 +2720,17 @@ const COLUMN_HELP: Record<string, string> = {
   상세정보입력: '상세정보 입력 화면에서 이 컬럼을 숨길지 조정하는 체크박스입니다.',
   서버공고일치: '서버공고 원본 컬럼과 표준 컬럼 비교 검증에 쓰던 메타입니다. 기본 운영 화면에서는 숨겨둡니다.',
   확정메모: '컬럼 규칙 확정 과정에서 남긴 메모입니다. 기본 운영 화면에서는 숨겨둡니다.',
+  id: '행 식별자입니다.',
+  '원본 (등록증 표기)': '공고문/API/등록증에 실제로 나타나는 종목 원문입니다. 이 값을 찾아 표준 종목으로 바꿉니다.',
+  일반_기타_전문: '종목의 건설유형입니다. 적격심사 1차 기준표에서 일반건설/전문건설/기타건설 금액 칸을 고르는 기준입니다.',
+  세부유형: '표준 종목인지, 운영 중 추가한 확장 표현인지 구분합니다.',
+  업종: '업무상 표준 종목입니다. 전문건설이면 대업종이 들어갈 수 있습니다.',
+  주력업종: '전문건설의 주력종목입니다. 업종과 같으면 주력종목 없음으로 보고 단독평가종목은 업종만 씁니다.',
+  상위업종: '상위종목입니다. 예: 건축/토목의 상위종목은 토건, 기계소방/전기소방의 상위종목은 전문소방입니다.',
+  대체업종: '참여 가능 면허 매칭에서 함께 인정할 대체종목입니다. 심사용 단독평가종목은 원 종목 기준을 유지합니다.',
+  상호진출_상대종목: '상호진출 허용 시 이 종목과 연결 가능한 상대 종목 목록입니다. 콤마로 구분합니다. 예: 실내건축,금속창호지붕',
+  단독평가_제외: '1이면 표시용 종목에는 나올 수 있지만 단독평가종목에는 넣지 않습니다. 예: 토건',
+  길이: '원본 문자열 길이입니다. 긴 원문을 먼저 매칭하기 위한 정렬/충돌 방지 기준입니다.',
 }
 
 const CHECKBOX_COLUMNS = new Set(['공고관리 표시', '상세정보입력'])
@@ -3111,7 +3032,7 @@ function DataTable({
                   style={columnStyle(col)}
                   aria-sort={activeSort === 'asc' ? 'ascending' : activeSort === 'desc' ? 'descending' : 'none'}
                 >
-                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={standardColumnMode ? columnHelp(col) : `${col} 기준으로 정렬합니다.`}>
+                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={columnHelp(col)}>
                     <span className="th-label">{standardColumnMode ? displayColumnName(col) : col}</span>
                     <span className="sort-indicator" aria-hidden="true">
                       {activeSort === 'asc' ? '▲' : activeSort === 'desc' ? '▼' : ''}

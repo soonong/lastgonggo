@@ -1746,14 +1746,6 @@ td.status-오류 {
   font-style: normal;
 }
 
-.jongmok-cross-editor {
-  flex: 0 0 auto;
-}
-
-.jongmok-cross-editor textarea {
-  min-height: 78px;
-}
-
 .settings-table-section .table-wrap,
 .settings-content .split-view > .table-section .table-wrap {
   height: min(760px, calc(100vh - 150px));
