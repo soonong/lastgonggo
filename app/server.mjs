@@ -518,6 +518,7 @@ function normalizeNoticeDocument(html) {
       순번: index + 1,
       유형: classifyBlock(text, numbering),
       번호: numbering?.번호 ?? '',
+      계층: numbering?.계층 ?? '',
       제목: numbering?.제목 ?? '',
       원문: text,
       길이: text.length,
@@ -579,7 +580,21 @@ function isHardStart(line) {
 function detectNumbering(text) {
   const match = String(text || '').match(/^((?:\d+(?:[.)-]|\s+))|(?:[가-힣][.)])|(?:[①-⑳])|(?:[㉠-㉭])|(?:제\s*\d+\s*조))\s*(.*)$/)
   if (!match) return null
-  return { 번호: match[1].trim(), 제목: (match[2] || '').slice(0, 80).trim() }
+  const 번호 = match[1].trim()
+  return { 번호, 계층: numberingLevel(번호), 제목: (match[2] || '').slice(0, 80).trim() }
+}
+
+function numberingLevel(no) {
+  const value = String(no || '').trim()
+  if (/^\d+[.]$/.test(value)) return 1
+  if (/^[가-힣][.]$/.test(value)) return 2
+  if (/^\d+[)]$/.test(value)) return 3
+  if (/^[가-힣][)]$/.test(value)) return 4
+  if (/^[①-⑳]$/.test(value)) return 4
+  if (/^[㉠-㉭]$/.test(value)) return 5
+  if (/^제\s*\d+\s*조/.test(value)) return 1
+  if (/^\d+$/.test(value)) return 1
+  return 9
 }
 
 function classifyBlock(text, numbering) {
@@ -593,12 +608,24 @@ function classifyBlock(text, numbering) {
 function buildSections(blocks) {
   const sections = []
   let current = null
+  let currentMajor = null
   for (const block of blocks) {
     if (block.번호 || block.유형 === '제목') {
       if (current) sections.push(current)
+      const level = Number(block.계층 || 1)
+      if ((block.번호 && level === 1) || !currentMajor) {
+        currentMajor = {
+          번호: block.번호,
+          제목: block.제목 || block.원문.slice(0, 80),
+          시작블록: block.순번,
+        }
+      }
       current = {
         순번: sections.length + 1,
         번호: block.번호,
+        계층: level,
+        대섹션번호: currentMajor?.번호 || block.번호,
+        대섹션제목: currentMajor?.제목 || block.제목 || block.원문.slice(0, 80),
         제목: block.제목 || block.원문.slice(0, 80),
         시작블록: block.순번,
         종료블록: block.순번,

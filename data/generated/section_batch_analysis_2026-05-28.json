@@ -1,0 +1,855 @@
+{
+  "total": 108,
+  "success": 108,
+  "errors": [],
+  "byClass": {
+    "(unclassified)": 2913,
+    "안전보건": 1067,
+    "하도급": 759,
+    "입찰참가자격": 757,
+    "금액정보": 644,
+    "낙찰방법": 569,
+    "입찰일정": 563,
+    "기타사항": 501,
+    "계약방식": 385,
+    "관련규정": 222,
+    "입찰무효": 192,
+    "공동계약": 166,
+    "입찰보증금": 142,
+    "문의처": 126,
+    "입찰참가신청": 73,
+    "지역제한": 42
+  },
+  "majorSamples": [
+    {
+      "notice": "E052600267",
+      "major": "공 사 명 : 제2발전소 탈황 및 회처리설비 페이지폰 보강 통신공사",
+      "title": "공 사 명 : 제2발전소 탈황 및 회처리설비 페이지폰 보강 통신공사",
+      "cls": "(unclassified)"
+    },
+    {
+      "notice": "E052600267",
+      "major": "공사개요",
+      "title": "공사개요",
+      "cls": "금액정보"
+    },
+    {
+      "notice": "E052600267",
+      "major": "추정가격 : ￦ 185,714,000- (부가세 별도)",
+      "title": "추정가격 : ￦ 185,714,000- (부가세 별도)",
+      "cls": "금액정보"
+    },
+    {
+      "notice": "E052600267",
+      "major": "추정금액 : ￦ 249,593,300 - (부가세 포함)",
+      "title": "추정금액 : ￦ 249,593,300 - (부가세 포함)",
+      "cls": "금액정보"
+    },
+    {
+      "notice": "E052600267",
+      "major": "공사구분 / 공사유형 : 전문공사 / 정보통신공사 ※ 예비가격 기초금액 : 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net",
+      "title": "공사구분 / 공사유형 : 전문공사 / 정보통신공사 ※ 예비가격 기초금액 : 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net",
+      "cls": "금액정보"
+    },
+    {
+      "notice": "E052600267",
+      "major": "공사내용 위 치 : 시방서 참조 공사규모 : 시방서 참조 공사범위 : 시방서 참조 공사기간 : 착공 후 60일",
+      "title": "공사내용 위 치 : 시방서 참조 공사규모 : 시방서 참조 공사범위 : 시방서 참조 공사기간 : 착공 후 60일",
+      "cls": "금액정보"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰참가자격 : 아래 요건을 모두 갖춘 자",
+      "title": "입찰참가자격 : 아래 요건을 모두 갖춘 자",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "「국가를 당사자로 하는 계약에 관한 법률」제27조 및 시행령 제76조 규정에 따라 부정당사업자에 해당하지 않는 자",
+      "title": "「국가를 당사자로 하는 계약에 관한 법률」제27조 및 시행령 제76조 규정에 따라 부정당사업자에 해당하지 않는 자",
+      "cls": "(unclassified)"
+    },
+    {
+      "notice": "E052600267",
+      "major": "「국가를 당사자로 하는 계약에 관한 법률」제27조의5 및 같은 법 시행령 제12조 제3항에 따라‘조세포탈 등을 한 자’로서 유죄판결이 확정된 날",
+      "title": "「국가를 당사자로 하는 계약에 관한 법률」제27조의5 및 같은 법 시행령 제12조 제3항에 따라‘조세포탈 등을 한 자’로서 유죄판결이 확정된 날",
+      "cls": "입찰무효"
+    },
+    {
+      "notice": "E052600267",
+      "major": "「정보통신공사업법」에 의거한 [정보통신공사업] 면허를 보유한 업체",
+      "title": "「정보통신공사업법」에 의거한 [정보통신공사업] 면허를 보유한 업체",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "｢발전소 주변지역기업 지원에 따른 법률｣ 제17조의2(지역기업의 우대) 규정에 의거, 법인등기부상 본점소재지를 충청남도 보령시에 두고 있는 자",
+      "title": "｢발전소 주변지역기업 지원에 따른 법률｣ 제17조의2(지역기업의 우대) 규정에 의거, 법인등기부상 본점소재지를 충청남도 보령시에 두고 있는 자",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "공동계약에 관한 사항 : 불허",
+      "title": "공동계약에 관한 사항 : 불허",
+      "cls": "공동계약"
+    },
+    {
+      "notice": "E052600267",
+      "major": "하도급에 관한 사항",
+      "title": "하도급에 관한 사항",
+      "cls": "하도급"
+    },
+    {
+      "notice": "E052600267",
+      "major": "본 공사는 하도급이 불가 하며, 관련 법령상 하도급 규정을 위반하여 하도급을 하 거나 발주부서 승인 없이 하도급을 하는 경우 입찰참가자격 제한을",
+      "title": "본 공사는 하도급이 불가 하며, 관련 법령상 하도급 규정을 위반하여 하도급을 하 거나 발주부서 승인 없이 하도급을 하는 경우 입찰참가자격 제한을",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "본 입찰은 계약상대자가 제3자에게 계약의 일부를 하도급하고자 하는 경우에는 하도급 대금 직불제를 시행하여야 하며, 본 입찰에 참여하고자 입찰참가",
+      "title": "본 입찰은 계약상대자가 제3자에게 계약의 일부를 하도급하고자 하는 경우에는 하도급 대금 직불제를 시행하여야 하며, 본 입찰에 참여하고자 입찰참가",
+      "cls": "하도급"
+    },
+    {
+      "notice": "E052600267",
+      "major": "현장설명 : 해당사항 없음",
+      "title": "현장설명 : 해당사항 없음",
+      "cls": "입찰일정"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰보증금 및 귀속",
+      "title": "입찰보증금 및 귀속",
+      "cls": "입찰보증금"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰보증금(입찰금액의 5%이상) 납부는 면제하되 입찰보증금 지급각서를 제출하여야 합니다. 다만, 입찰공고일 이전 1년 이내에「국가를 당사자로 하",
+      "title": "입찰보증금(입찰금액의 5%이상) 납부는 면제하되 입찰보증금 지급각서를 제출하여야 합니다. 다만, 입찰공고일 이전 1년 이내에「국가를 당사자로 하",
+      "cls": "입찰무효"
+    },
+    {
+      "notice": "E052600267",
+      "major": "낙찰자가 정당한 이유 없이 소정기일 내에 계약을 체결하지 아니할 때에는 입찰보증금은 당사에 귀속됩니다. 입찰보증금 지급각서를 제출한 경우에는 입",
+      "title": "낙찰자가 정당한 이유 없이 소정기일 내에 계약을 체결하지 아니할 때에는 입찰보증금은 당사에 귀속됩니다. 입찰보증금 지급각서를 제출한 경우에는 입",
+      "cls": "입찰무효"
+    },
+    {
+      "notice": "E052600267",
+      "major": "‘가’항에도 불구하고 재난 및 안전관리 기본법 제3조제1호의 재난이나 경기침체, 대량실업 등으로 인한 국가의 경제위기를 극복하기 위해 기획재정부",
+      "title": "‘가’항에도 불구하고 재난 및 안전관리 기본법 제3조제1호의 재난이나 경기침체, 대량실업 등으로 인한 국가의 경제위기를 극복하기 위해 기획재정부",
+      "cls": "(unclassified)"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰참가신청",
+      "title": "입찰참가신청",
+      "cls": "입찰참가신청"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰참가신청 ◎ 신청방법 : 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )로 접속하여 입찰참가 신청을 하여야 합니다.",
+      "title": "입찰참가신청 ◎ 신청방법 : 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )로 접속하여 입찰참가 신청을 하여야 합니다.",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "전력그룹사 전자입찰 홈페이지 참가자격 등록업체에 한하여 입찰참가신청이 가능하며 전자입찰 홈페이지의 이용자 등록 절차에 따라 입찰참가자격 등록을",
+      "title": "전력그룹사 전자입찰 홈페이지 참가자격 등록업체에 한하여 입찰참가신청이 가능하며 전자입찰 홈페이지의 이용자 등록 절차에 따라 입찰참가자격 등록을",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "전자입찰 참가자는 입찰참가신청 및 보증금 납부 후 입찰서 투찰이 가능하며 입찰참가자격은 입찰참가신청 마감 후 담당자가 재확인 심사하여 재확인 심",
+      "title": "전자입찰 참가자는 입찰참가신청 및 보증금 납부 후 입찰서 투찰이 가능하며 입찰참가자격은 입찰참가신청 마감 후 담당자가 재확인 심사하여 재확인 심",
+      "cls": "입찰참가자격"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰(방문입찰, 우편입찰 불가) 및 개찰",
+      "title": "입찰(방문입찰, 우편입찰 불가) 및 개찰",
+      "cls": "입찰일정"
+    },
+    {
+      "notice": "E052600267",
+      "major": "본 입찰은 전자입찰로만 집행되며, 전자입찰서는 반드시 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )에 접속하여 인터넷으",
+      "title": "본 입찰은 전자입찰로만 집행되며, 전자입찰서는 반드시 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )에 접속하여 인터넷으",
+      "cls": "기타사항"
+    },
+    {
+      "notice": "E052600267",
+      "major": "전자입찰서는 제8항의 입찰참가신청을 한 자에 한하여 입찰담당자가 입찰참가신청 승인을 한 경우에 한하여 제출할 수 있습니다.",
+      "title": "전자입찰서는 제8항의 입찰참가신청을 한 자에 한하여 입찰담당자가 입찰참가신청 승인을 한 경우에 한하여 제출할 수 있습니다.",
+      "cls": "입찰참가신청"
+    },
+    {
+      "notice": "E052600267",
+      "major": "전자입찰서 제출확인은 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )의 “나의 메시지”에서 확인하시기 바랍니다.",
+      "title": "전자입찰서 제출확인은 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )의 “나의 메시지”에서 확인하시기 바랍니다.",
+      "cls": "입찰일정"
+    },
+    {
+      "notice": "E052600267",
+      "major": "입찰(투찰)일시 : 전자공고문 참조",
+      "title": "입찰(투찰)일시 : 전자공고문 참조",
+      "cls": "(unclassified)"
+    },
+    {
+      "notice": "E052600267",
+      "major": "개찰은 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )에서 투찰마감시간 1시간 경과 후 개찰합니다.",
+      "title": "개찰은 전력그룹사 전자입찰 홈페이지( http://srm.kepco.net )에서 투찰마감시간 1시간 경과 후 개찰합니다.",
+      "cls": "입찰일정"
+    }
+  ],
+  "rows": [
+    {
+      "notice": "E052600267",
+      "status": "ok",
+      "sectionCount": 61,
+      "classified": 49
+    },
+    {
+      "notice": "2026-06665",
+      "status": "ok",
+      "sectionCount": 91,
+      "classified": 55
+    },
+    {
+      "notice": "2026-06695",
+      "status": "ok",
+      "sectionCount": 92,
+      "classified": 55
+    },
+    {
+      "notice": "2026-06756",
+      "status": "ok",
+      "sectionCount": 119,
+      "classified": 79
+    },
+    {
+      "notice": "E012603961",
+      "status": "ok",
+      "sectionCount": 75,
+      "classified": 60
+    },
+    {
+      "notice": "2026-06766",
+      "status": "ok",
+      "sectionCount": 115,
+      "classified": 69
+    },
+    {
+      "notice": "R26BK01541680-000",
+      "status": "ok",
+      "sectionCount": 52,
+      "classified": 33
+    },
+    {
+      "notice": "R26BK01543262-000",
+      "status": "ok",
+      "sectionCount": 77,
+      "classified": 60
+    },
+    {
+      "notice": "R26BK01543632-000",
+      "status": "ok",
+      "sectionCount": 64,
+      "classified": 47
+    },
+    {
+      "notice": "R26BK01541710-000",
+      "status": "ok",
+      "sectionCount": 86,
+      "classified": 69
+    },
+    {
+      "notice": "R26BK01538129-001",
+      "status": "ok",
+      "sectionCount": 59,
+      "classified": 39
+    },
+    {
+      "notice": "R26BK01542507-000",
+      "status": "ok",
+      "sectionCount": 112,
+      "classified": 79
+    },
+    {
+      "notice": "R26BK01542535-000",
+      "status": "ok",
+      "sectionCount": 112,
+      "classified": 79
+    },
+    {
+      "notice": "R26BK01543534-000",
+      "status": "ok",
+      "sectionCount": 99,
+      "classified": 62
+    },
+    {
+      "notice": "2026-06706",
+      "status": "ok",
+      "sectionCount": 107,
+      "classified": 70
+    },
+    {
+      "notice": "2026-06675",
+      "status": "ok",
+      "sectionCount": 108,
+      "classified": 71
+    },
+    {
+      "notice": "2026-06734",
+      "status": "ok",
+      "sectionCount": 70,
+      "classified": 44
+    },
+    {
+      "notice": "2026-06725",
+      "status": "ok",
+      "sectionCount": 115,
+      "classified": 81
+    },
+    {
+      "notice": "E062600277",
+      "status": "ok",
+      "sectionCount": 55,
+      "classified": 40
+    },
+    {
+      "notice": "2026-06769",
+      "status": "ok",
+      "sectionCount": 66,
+      "classified": 40
+    },
+    {
+      "notice": "R26BK01543029-001",
+      "status": "ok",
+      "sectionCount": 68,
+      "classified": 48
+    },
+    {
+      "notice": "2026-06772",
+      "status": "ok",
+      "sectionCount": 113,
+      "classified": 77
+    },
+    {
+      "notice": "R26BK01541168-000",
+      "status": "ok",
+      "sectionCount": 207,
+      "classified": 111
+    },
+    {
+      "notice": "R26BK01527282-000",
+      "status": "ok",
+      "sectionCount": 0,
+      "classified": 0
+    },
+    {
+      "notice": "2026-06640",
+      "status": "ok",
+      "sectionCount": 113,
+      "classified": 77
+    },
+    {
+      "notice": "R26BK01539768-000",
+      "status": "ok",
+      "sectionCount": 65,
+      "classified": 48
+    },
+    {
+      "notice": "R26BK01541795-000",
+      "status": "ok",
+      "sectionCount": 94,
+      "classified": 62
+    },
+    {
+      "notice": "R26BK01540892-000",
+      "status": "ok",
+      "sectionCount": 94,
+      "classified": 62
+    },
+    {
+      "notice": "R26BK01539713-000",
+      "status": "ok",
+      "sectionCount": 70,
+      "classified": 49
+    },
+    {
+      "notice": "R26BK01542230-000",
+      "status": "ok",
+      "sectionCount": 136,
+      "classified": 92
+    },
+    {
+      "notice": "R26BK01544273-000",
+      "status": "ok",
+      "sectionCount": 45,
+      "classified": 35
+    },
+    {
+      "notice": "R26BK01541845-000",
+      "status": "ok",
+      "sectionCount": 104,
+      "classified": 85
+    },
+    {
+      "notice": "R26BK01539896-000",
+      "status": "ok",
+      "sectionCount": 87,
+      "classified": 55
+    },
+    {
+      "notice": "R26BK01542313-000",
+      "status": "ok",
+      "sectionCount": 52,
+      "classified": 36
+    },
+    {
+      "notice": "R26BK01540780-000",
+      "status": "ok",
+      "sectionCount": 156,
+      "classified": 105
+    },
+    {
+      "notice": "R26BK01541172-000",
+      "status": "ok",
+      "sectionCount": 81,
+      "classified": 62
+    },
+    {
+      "notice": "R26BK01544151-000",
+      "status": "ok",
+      "sectionCount": 135,
+      "classified": 76
+    },
+    {
+      "notice": "R26BK01539229-000",
+      "status": "ok",
+      "sectionCount": 64,
+      "classified": 51
+    },
+    {
+      "notice": "R26BK01540966-000",
+      "status": "ok",
+      "sectionCount": 50,
+      "classified": 36
+    },
+    {
+      "notice": "R26BK01541164-000",
+      "status": "ok",
+      "sectionCount": 81,
+      "classified": 62
+    },
+    {
+      "notice": "R26BK01542496-000",
+      "status": "ok",
+      "sectionCount": 88,
+      "classified": 61
+    },
+    {
+      "notice": "R26BK01542023-000",
+      "status": "ok",
+      "sectionCount": 103,
+      "classified": 70
+    },
+    {
+      "notice": "R26BK01543582-000",
+      "status": "ok",
+      "sectionCount": 49,
+      "classified": 39
+    },
+    {
+      "notice": "R26BK01544282-000",
+      "status": "ok",
+      "sectionCount": 48,
+      "classified": 38
+    },
+    {
+      "notice": "R26BK01543894-000",
+      "status": "ok",
+      "sectionCount": 64,
+      "classified": 40
+    },
+    {
+      "notice": "R26BK01541768-000",
+      "status": "ok",
+      "sectionCount": 49,
+      "classified": 36
+    },
+    {
+      "notice": "R26BK01540580-000",
+      "status": "ok",
+      "sectionCount": 40,
+      "classified": 28
+    },
+    {
+      "notice": "R26BK01542096-000",
+      "status": "ok",
+      "sectionCount": 63,
+      "classified": 41
+    },
+    {
+      "notice": "R26BK01538591-000",
+      "status": "ok",
+      "sectionCount": 106,
+      "classified": 76
+    },
+    {
+      "notice": "R26BK01544276-000",
+      "status": "ok",
+      "sectionCount": 0,
+      "classified": 0
+    },
+    {
+      "notice": "R26BK01541404-000",
+      "status": "ok",
+      "sectionCount": 53,
+      "classified": 37
+    },
+    {
+      "notice": "R26BK01542109-000",
+      "status": "ok",
+      "sectionCount": 30,
+      "classified": 25
+    },
+    {
+      "notice": "R26BK01541956-001",
+      "status": "ok",
+      "sectionCount": 30,
+      "classified": 25
+    },
+    {
+      "notice": "R26BK01542080-001",
+      "status": "ok",
+      "sectionCount": 30,
+      "classified": 25
+    },
+    {
+      "notice": "R26BK01535085-000",
+      "status": "ok",
+      "sectionCount": 136,
+      "classified": 75
+    },
+    {
+      "notice": "R26BK01538707-000",
+      "status": "ok",
+      "sectionCount": 84,
+      "classified": 61
+    },
+    {
+      "notice": "R26BK01544026-000",
+      "status": "ok",
+      "sectionCount": 165,
+      "classified": 97
+    },
+    {
+      "notice": "R26BK01539677-000",
+      "status": "ok",
+      "sectionCount": 40,
+      "classified": 25
+    },
+    {
+      "notice": "R26BK01543297-000",
+      "status": "ok",
+      "sectionCount": 62,
+      "classified": 49
+    },
+    {
+      "notice": "R26BK01543245-000",
+      "status": "ok",
+      "sectionCount": 62,
+      "classified": 49
+    },
+    {
+      "notice": "R26BK01540238-000",
+      "status": "ok",
+      "sectionCount": 30,
+      "classified": 21
+    },
+    {
+      "notice": "R26BK01457605-000",
+      "status": "ok",
+      "sectionCount": 166,
+      "classified": 103
+    },
+    {
+      "notice": "2601810-00",
+      "status": "ok",
+      "sectionCount": 82,
+      "classified": 62
+    },
+    {
+      "notice": "2601817-00",
+      "status": "ok",
+      "sectionCount": 82,
+      "classified": 62
+    },
+    {
+      "notice": "E012603898",
+      "status": "ok",
+      "sectionCount": 80,
+      "classified": 67
+    },
+    {
+      "notice": "B3202601788",
+      "status": "ok",
+      "sectionCount": 121,
+      "classified": 84
+    },
+    {
+      "notice": "R26BK01541491-000",
+      "status": "ok",
+      "sectionCount": 106,
+      "classified": 85
+    },
+    {
+      "notice": "E012603944",
+      "status": "ok",
+      "sectionCount": 72,
+      "classified": 58
+    },
+    {
+      "notice": "E012603870",
+      "status": "ok",
+      "sectionCount": 71,
+      "classified": 58
+    },
+    {
+      "notice": "R26BK01543468-000",
+      "status": "ok",
+      "sectionCount": 21,
+      "classified": 13
+    },
+    {
+      "notice": "R26BK01541622-000",
+      "status": "ok",
+      "sectionCount": 94,
+      "classified": 39
+    },
+    {
+      "notice": "R26BK01541375-000",
+      "status": "ok",
+      "sectionCount": 0,
+      "classified": 0
+    },
+    {
+      "notice": "R26BK01538262-000",
+      "status": "ok",
+      "sectionCount": 86,
+      "classified": 62
+    },
+    {
+      "notice": "R26BK01539737-000",
+      "status": "ok",
+      "sectionCount": 88,
+      "classified": 68
+    },
+    {
+      "notice": "E012603943",
+      "status": "ok",
+      "sectionCount": 78,
+      "classified": 64
+    },
+    {
+      "notice": "R26BK01542928-000",
+      "status": "ok",
+      "sectionCount": 62,
+      "classified": 46
+    },
+    {
+      "notice": "R26BK01541947-000",
+      "status": "ok",
+      "sectionCount": 116,
+      "classified": 87
+    },
+    {
+      "notice": "R26BK01540831-000",
+      "status": "ok",
+      "sectionCount": 96,
+      "classified": 67
+    },
+    {
+      "notice": "R26BK01544423-000",
+      "status": "ok",
+      "sectionCount": 53,
+      "classified": 40
+    },
+    {
+      "notice": "R26BK01544381-000",
+      "status": "ok",
+      "sectionCount": 122,
+      "classified": 85
+    },
+    {
+      "notice": "R26BK01543107-000",
+      "status": "ok",
+      "sectionCount": 28,
+      "classified": 24
+    },
+    {
+      "notice": "R26BK01541310-000",
+      "status": "ok",
+      "sectionCount": 123,
+      "classified": 84
+    },
+    {
+      "notice": "202605186",
+      "status": "ok",
+      "sectionCount": 141,
+      "classified": 68
+    },
+    {
+      "notice": "R26BK01542325-000",
+      "status": "ok",
+      "sectionCount": 169,
+      "classified": 103
+    },
+    {
+      "notice": "R26BK01542302-000",
+      "status": "ok",
+      "sectionCount": 160,
+      "classified": 96
+    },
+    {
+      "notice": "R26BK01544315-000",
+      "status": "ok",
+      "sectionCount": 66,
+      "classified": 49
+    },
+    {
+      "notice": "R26BK01540447-000",
+      "status": "ok",
+      "sectionCount": 107,
+      "classified": 93
+    },
+    {
+      "notice": "R26BK01542865-000",
+      "status": "ok",
+      "sectionCount": 127,
+      "classified": 58
+    },
+    {
+      "notice": "R26BK01543001-000",
+      "status": "ok",
+      "sectionCount": 28,
+      "classified": 24
+    },
+    {
+      "notice": "R26BK01541920-001",
+      "status": "ok",
+      "sectionCount": 67,
+      "classified": 52
+    },
+    {
+      "notice": "E012603967",
+      "status": "ok",
+      "sectionCount": 90,
+      "classified": 67
+    },
+    {
+      "notice": "R26BK01543085-000",
+      "status": "ok",
+      "sectionCount": 127,
+      "classified": 58
+    },
+    {
+      "notice": "R26BK01542251-000",
+      "status": "ok",
+      "sectionCount": 79,
+      "classified": 59
+    },
+    {
+      "notice": "R26BK01543150-000",
+      "status": "ok",
+      "sectionCount": 28,
+      "classified": 24
+    },
+    {
+      "notice": "E012603929",
+      "status": "ok",
+      "sectionCount": 84,
+      "classified": 59
+    },
+    {
+      "notice": "R26BK01541963-000",
+      "status": "ok",
+      "sectionCount": 17,
+      "classified": 8
+    },
+    {
+      "notice": "R26BK01539947-000",
+      "status": "ok",
+      "sectionCount": 81,
+      "classified": 60
+    },
+    {
+      "notice": "E012603941",
+      "status": "ok",
+      "sectionCount": 95,
+      "classified": 72
+    },
+    {
+      "notice": "R26BK01537504-000",
+      "status": "ok",
+      "sectionCount": 138,
+      "classified": 90
+    },
+    {
+      "notice": "R26BK01537460-000",
+      "status": "ok",
+      "sectionCount": 138,
+      "classified": 90
+    },
+    {
+      "notice": "R26BK01541260-000",
+      "status": "ok",
+      "sectionCount": 21,
+      "classified": 9
+    },
+    {
+      "notice": "R26BK01534921-000",
+      "status": "ok",
+      "sectionCount": 147,
+      "classified": 82
+    },
+    {
+      "notice": "R26BK01538260-001",
+      "status": "ok",
+      "sectionCount": 99,
+      "classified": 66
+    },
+    {
+      "notice": "R26BK01540990-000",
+      "status": "ok",
+      "sectionCount": 23,
+      "classified": 20
+    },
+    {
+      "notice": "Y26S076000/0",
+      "status": "ok",
+      "sectionCount": 165,
+      "classified": 91
+    },
+    {
+      "notice": "E012603936",
+      "status": "ok",
+      "sectionCount": 86,
+      "classified": 68
+    },
+    {
+      "notice": "E012603937",
+      "status": "ok",
+      "sectionCount": 91,
+      "classified": 68
+    },
+    {
+      "notice": "R26BK01530841-000",
+      "status": "ok",
+      "sectionCount": 118,
+      "classified": 88
+    }
+  ]
+}

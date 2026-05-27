@@ -2700,7 +2700,7 @@ function ParserNormalizationView({ search }: { search: string }) {
         <SettingsDatasetView title="공고문 정규화 요약" rows={summaryRows} search={search} preferredColumns={['항목', '값']} />
       ) : null}
       {activeTab === '번호/섹션' ? (
-        <SettingsDatasetView title="번호/섹션 인식" rows={result?.normalized.sections ?? []} search={search} preferredColumns={['순번', '번호', '섹션분류', '분류근거', '제외여부', '제목', '시작블록', '종료블록', '내용미리보기']} />
+        <SettingsDatasetView title="번호/섹션 인식" rows={result?.normalized.sections ?? []} search={search} preferredColumns={['순번', '대섹션번호', '대섹션제목', '번호', '계층', '섹션분류', '분류근거', '제외여부', '제목', '시작블록', '종료블록', '내용미리보기']} />
       ) : null}
       {activeTab === '표 복원' ? (
         <SettingsDatasetView title="표 후보 복원" rows={result?.normalized.tables ?? []} search={search} preferredColumns={['순번', '유형', '행수', '열수', '헤더', '첫값행', '경고']} />
