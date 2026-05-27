@@ -1767,6 +1767,9 @@ function SettingsContent({
       />
     )
   }
+  if (screenType === 'guide') {
+    return <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} />
+  }
   if (screenType === 'standard') {
     return (
       <SettingsDatasetView
@@ -1894,13 +1897,7 @@ function SettingsContent({
   }
   if (activeMenu === '조건판단형태 가이드') {
     return (
-      <SettingsDatasetView
-        title="조건판단형태 가이드"
-        rows={settings.parserTypeGuide ?? []}
-        search={search}
-        preferredColumns={['조건판단형태', '이름', '용도', '예시본문', '결과예시', '주의']}
-        {...editableProps('parserTypeGuide')}
-      />
+      <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} />
     )
   }
   if (activeMenu === '샘플 공고 테스트') {
@@ -1949,7 +1946,7 @@ function preferredColumnsForSetting(key: string) {
     profileInfo: ['id', '항목', '값', '메모'],
     excludedItems: ['id', '종목', '사용여부', '메모'],
     changelog: ['id', '일시', '구분', '대상', '내용', '사용자', '메모'],
-    parserTypeGuide: ['조건판단형태', '이름', '용도', '예시본문', '결과예시', '주의'],
+    parserTypeGuide: ['조건판단형태', '이름', '용도', '출력', '판단로직', '영향정책', '예시본문', '결과예시', '주의', '토글비고'],
     bidMethodSkip: ['id', '입찰방식', '메모'],
   }
   return map[key] ?? ['id', '항목', '값', '메모']
@@ -2420,6 +2417,179 @@ function normalizeParserRuleRow(row: NoticeRow) {
     acc[field] = valueToText(row[field])
     return acc
   }, {})
+}
+
+function splitGuideItems(value: unknown) {
+  return valueToText(value)
+    .split('|')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: string }) {
+  const visibleRows = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    const base = rows.filter((row) => valueToText(row['조건판단형태']).trim())
+    if (!needle) return base
+    return base.filter((row) => Object.values(row).some((value) => valueToText(value).toLowerCase().includes(needle)))
+  }, [rows, search])
+  const [activeType, setActiveType] = useState('')
+  const [policy, setPolicy] = useState({
+    whitespace: true,
+    wordBoundary: true,
+    exclude: true,
+  })
+
+  useEffect(() => {
+    if (!visibleRows.length) {
+      setActiveType('')
+      return
+    }
+    if (!visibleRows.some((row) => valueToText(row['조건판단형태']) === activeType)) {
+      setActiveType(valueToText(visibleRows[0]['조건판단형태']))
+    }
+  }, [activeType, visibleRows])
+
+  const active = visibleRows.find((row) => valueToText(row['조건판단형태']) === activeType) ?? visibleRows[0]
+  const logic = splitGuideItems(active?.['판단로직'])
+  const policies = splitGuideItems(active?.['영향정책'])
+  const disabledNote = valueToText(active?.['토글비고']).trim()
+
+  return (
+    <div className="parser-guide-view">
+      <section className="parser-policy-panel">
+        <div className="parser-policy-head">
+          <strong>매칭 정책</strong>
+          <span>화면 기준 15개 조건판단형태</span>
+        </div>
+        <div className="parser-policy-list">
+          <label>
+            <input
+              type="checkbox"
+              checked={policy.whitespace}
+              onChange={(event) => setPolicy({ ...policy, whitespace: event.target.checked })}
+            />
+            <strong>공백 무시</strong>
+            <span>본문/키워드 공백 제거 후 매치. 예: 국민건강 보험료 ↔ 국민건강보험료</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={policy.wordBoundary}
+              onChange={(event) => setPolicy({ ...policy, wordBoundary: event.target.checked })}
+            />
+            <strong>단어 경계</strong>
+            <span>매치 영역 앞뒤에 한글/영숫자가 붙으면 비매치. 예: 국민건강 ↔ 국민건강보험료 차단</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={policy.exclude}
+              onChange={(event) => setPolicy({ ...policy, exclude: event.target.checked })}
+            />
+            <strong>exclude 검사</strong>
+            <span>제외키워드가 매치 주변에 있으면 해당 항목을 버립니다.</span>
+          </label>
+        </div>
+      </section>
+
+      <section className="parser-guide-intro">
+        <strong>문서곡괭이 조건판단형태 가이드</strong>
+        <span>
+          문서곡괭이는 공고문 HTML을 읽고 각 컬럼 룰의 조건판단형태를 위에서 아래로 시도합니다. 룰에 여러 타입이 있으면 첫
+          성공값을 채택하고, 실패하면 다음 타입으로 넘어갑니다.
+        </span>
+      </section>
+
+      <section className="parser-guide-shell">
+        <aside className="parser-guide-nav">
+          {visibleRows.map((row) => {
+            const code = valueToText(row['조건판단형태'])
+            const name = valueToText(row['이름'])
+            return (
+              <button key={code} type="button" className={code === activeType ? 'active' : ''} onClick={() => setActiveType(code)}>
+                {code} · {name}
+              </button>
+            )
+          })}
+        </aside>
+        <div className="parser-guide-card">
+          {active ? (
+            <>
+              <div className="parser-guide-card-head">
+                <span>{valueToText(active['조건판단형태'])}</span>
+                <strong>{valueToText(active['이름'])}</strong>
+                <em>→ {valueToText(active['출력']) || valueToText(active['결과예시'])}</em>
+              </div>
+              <p className="parser-guide-desc">{valueToText(active['용도'])}</p>
+
+              <div className="parser-guide-section">
+                <strong>판단 로직 (이 순서대로)</strong>
+                <ol>
+                  {logic.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="parser-guide-section">
+                <strong>영향 받는 정책</strong>
+                <div className="parser-guide-chips">
+                  {policies.map((item) => (
+                    <span key={item} className={item.includes('OFF') || item.includes('미적용') ? 'off' : ''}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="parser-guide-example">
+                <span>예시</span>
+                <p>{valueToText(active['예시본문'])}</p>
+                <b>→ {valueToText(active['결과예시'])}</b>
+              </div>
+
+              <div className="parser-guide-section">
+                <strong>함정 / 주의</strong>
+                <p>{valueToText(active['주의'])}</p>
+              </div>
+
+              <div className={disabledNote ? 'parser-guide-toggle disabled' : 'parser-guide-toggle'}>
+                <strong>정책 토글 (이 type 만)</strong>
+                {disabledNote ? (
+                  <span>{disabledNote}</span>
+                ) : (
+                  <div>
+                    {['공백 무시', '단어 경계', 'exclude'].map((label) => (
+                      <label key={label}>
+                        <span>{label}</span>
+                        <button type="button">전역</button>
+                        <button type="button">ON</button>
+                        <button type="button">OFF</button>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">조건판단형태 가이드 데이터가 없습니다.</div>
+          )}
+        </div>
+      </section>
+
+      <section className="parser-guide-policy">
+        <strong>매칭 정책 / 추가 사양</strong>
+        <ul>
+          <li>multi-type fallback: types 배열은 위에서 아래로 시도하고 첫 매치를 채택합니다.</li>
+          <li>단어 경계와 공백 무시는 기본 정책입니다. 1_4와 2_2는 코드에서 일부 정책을 고정합니다.</li>
+          <li>제외키워드는 매치된 값이나 주변 문장에 하나라도 있으면 OR 조건으로 차단합니다.</li>
+          <li>5_1은 추출값을 만들지 않고 검색 종료점만 설정합니다.</li>
+          <li>7_1은 공고확인, 특수실적, 특수실적_공통 같은 설정 마스터와 연결됩니다.</li>
+        </ul>
+      </section>
+    </div>
+  )
 }
 
 function ParsermanTestView({ search, parserRules }: { search: string; parserRules: NoticeRow[] }) {

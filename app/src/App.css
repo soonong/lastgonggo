@@ -1763,6 +1763,340 @@ td.status-오류 {
   font-style: normal;
 }
 
+.parser-guide-view {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parser-policy-panel,
+.parser-guide-intro,
+.parser-guide-shell,
+.parser-guide-policy {
+  background: #ffffff;
+  border: 1px solid #d9e1eb;
+  border-radius: 4px;
+}
+
+.parser-policy-panel {
+  flex: 0 0 auto;
+  padding: 9px 10px;
+}
+
+.parser-policy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.parser-policy-head strong,
+.parser-guide-intro strong,
+.parser-guide-policy strong {
+  color: #173f67;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.parser-policy-head span,
+.parser-guide-intro span {
+  color: #65778b;
+  font-size: 12px;
+}
+
+.parser-policy-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.parser-policy-list label {
+  display: grid;
+  grid-template-columns: 18px auto;
+  grid-template-rows: auto auto;
+  gap: 2px 7px;
+  min-width: 0;
+  padding: 7px;
+  background: #f7f9fc;
+  border: 1px solid #e1e8f0;
+  border-radius: 4px;
+}
+
+.parser-policy-list input {
+  grid-row: 1 / 3;
+  width: 15px;
+  height: 15px;
+  margin: 1px 0 0;
+  accent-color: #2f66a2;
+}
+
+.parser-policy-list strong {
+  color: #263b51;
+  font-size: 12px;
+}
+
+.parser-policy-list span {
+  color: #697b8e;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.parser-guide-intro {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+}
+
+.parser-guide-shell {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.parser-guide-nav {
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  background: #f8fafc;
+  border-right: 1px solid #dfe7ef;
+}
+
+.parser-guide-nav button {
+  justify-content: flex-start;
+  width: 100%;
+  height: 31px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  color: #34475b;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.parser-guide-nav button:hover,
+.parser-guide-nav button.active {
+  color: #123f66;
+  background: #e6f0fb;
+}
+
+.parser-guide-card {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.parser-guide-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #e4eaf1;
+}
+
+.parser-guide-card-head span {
+  padding: 4px 8px;
+  color: #ffffff;
+  background: #2f66a2;
+  border-radius: 4px;
+  font-family: Consolas, "D2Coding", monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.parser-guide-card-head strong {
+  overflow: hidden;
+  color: #172331;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parser-guide-card-head em {
+  color: #41617f;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.parser-guide-desc {
+  margin: 10px 0;
+  color: #34475b;
+  line-height: 1.6;
+}
+
+.parser-guide-section {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fbfcfe;
+  border: 1px solid #e2e9f1;
+  border-radius: 4px;
+}
+
+.parser-guide-section strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #234869;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.parser-guide-section ol,
+.parser-guide-section ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #31475e;
+  line-height: 1.65;
+}
+
+.parser-guide-section p {
+  margin: 0;
+  color: #31475e;
+  line-height: 1.6;
+}
+
+.parser-guide-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.parser-guide-chips span {
+  padding: 4px 7px;
+  color: #1f4e78;
+  background: #e9f2fb;
+  border: 1px solid #cbddec;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.parser-guide-chips span.off {
+  color: #7a4b00;
+  background: #fff4d8;
+  border-color: #ead097;
+}
+
+.parser-guide-example {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+  background: #f7fbff;
+  border: 1px solid #cfe1f2;
+  border-radius: 4px;
+}
+
+.parser-guide-example span {
+  color: #225f9f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.parser-guide-example p,
+.parser-guide-example b {
+  margin: 0;
+  color: #1f2933;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.parser-guide-toggle {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 4px;
+}
+
+.parser-guide-toggle > strong {
+  color: #34475b;
+  font-size: 12px;
+}
+
+.parser-guide-toggle > div {
+  display: grid;
+  gap: 6px;
+}
+
+.parser-guide-toggle label {
+  display: grid;
+  grid-template-columns: 90px repeat(3, 62px);
+  align-items: center;
+  gap: 4px;
+}
+
+.parser-guide-toggle label span,
+.parser-guide-toggle.disabled span {
+  color: #627386;
+  font-size: 12px;
+}
+
+.parser-guide-toggle button {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.parser-guide-toggle.disabled {
+  background: #fff8e9;
+  border-color: #ecd49d;
+}
+
+.parser-guide-policy {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+}
+
+.parser-guide-policy ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #43586d;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.settings-shell-dark .parser-policy-panel,
+.settings-shell-dark .parser-guide-intro,
+.settings-shell-dark .parser-guide-shell,
+.settings-shell-dark .parser-guide-policy,
+.settings-shell-dark .parser-guide-card,
+.settings-shell-dark .parser-guide-section,
+.settings-shell-dark .parser-guide-example,
+.settings-shell-dark .parser-guide-toggle {
+  color: #dbe5f1;
+  background: #151d2a;
+  border-color: #2b384a;
+}
+
+.settings-shell-dark .parser-guide-nav,
+.settings-shell-dark .parser-policy-list label {
+  background: #111827;
+  border-color: #263344;
+}
+
+.settings-shell-dark .parser-guide-card-head strong,
+.settings-shell-dark .parser-guide-desc,
+.settings-shell-dark .parser-guide-section p,
+.settings-shell-dark .parser-guide-section ol,
+.settings-shell-dark .parser-guide-policy ul,
+.settings-shell-dark .parser-guide-example p,
+.settings-shell-dark .parser-guide-example b {
+  color: #dbe5f1;
+}
+
 .settings-table-section .table-wrap,
 .settings-content .split-view > .table-section .table-wrap {
   height: min(760px, calc(100vh - 150px));

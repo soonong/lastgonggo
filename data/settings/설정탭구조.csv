@@ -19,6 +19,7 @@ master.transmissionOffice,마스터데이터,Database,지역,한전 송전사업
 master.powerPlantRegion,마스터데이터,Database,지역,발전소지역,powerPlantRegion,table,발전소 특수지역을 관리합니다.,18
 master.regionMine,마스터데이터,Database,지역,폐광지역진흥지구,regionMine,table,폐광지역진흥지구를 관리합니다.,19
 review.parser,검수,ClipboardCheck,검수,문서곡괭이 검증,parserRules,parser,문서곡괭이 룰 편집과 조건판단형태 가이드를 확인합니다.,20
-profile.settings,내설정,UserRound,내설정,내설정,profileInfo,table,사용자 설정을 관리합니다.,21
-changelog,변경로그,History,변경로그,변경로그,changelog,table,설정 변경 이력을 확인합니다.,22
+review.parserGuide,검수,ClipboardCheck,검수,조건판단형태 가이드,parserTypeGuide,guide,문서곡괭이 조건판단형태 15종을 홈페이지 기준으로 확인합니다.,21
+profile.settings,내설정,UserRound,내설정,내설정,profileInfo,table,사용자 설정을 관리합니다.,22
+changelog,변경로그,History,변경로그,변경로그,changelog,table,설정 변경 이력을 확인합니다.,23
 
