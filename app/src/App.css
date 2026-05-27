@@ -664,7 +664,7 @@ textarea:focus {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  margin-top: 8px;
+  margin-top: 0;
   background: #ffffff;
   border: 1px solid #d9e1eb;
   border-radius: 4px;
@@ -675,14 +675,16 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
-  padding: 8px 10px;
+  min-height: 36px;
+  padding: 5px 8px;
+  background: #fbfcfe;
   border-bottom: 1px solid #e5eaf1;
 }
 
 .section-head h2 {
-  margin: 0 0 2px;
-  font-size: 15px;
+  margin: 0;
+  color: #1e2b3a;
+  font-size: 13px;
   letter-spacing: 0;
 }
 
@@ -690,7 +692,7 @@ textarea:focus {
 .metric span {
   display: block;
   color: #6a7b8f;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .section-head select {
@@ -1111,6 +1113,11 @@ td.status-오류 {
   background: #f7f8fa;
 }
 
+.settings-shell-dark {
+  color: #dbe5f1;
+  background: #111827;
+}
+
 .settings-rail {
   display: grid;
   grid-auto-rows: 44px;
@@ -1230,54 +1237,116 @@ td.status-오류 {
   background: #e6f0fb;
 }
 
+.settings-shell-dark .settings-panel,
+.settings-shell-dark .settings-cmdbar,
+.settings-shell-dark .settings-content,
+.settings-shell-dark .table-section,
+.settings-shell-dark .dashboard-card,
+.settings-shell-dark .recent-change-panel {
+  color: #dbe5f1;
+  background: #151d2a;
+  border-color: #2b384a;
+}
+
+.settings-shell-dark .settings-title strong,
+.settings-shell-dark .section-head h2,
+.settings-shell-dark .dashboard-today h2,
+.settings-shell-dark .recent-change-head h2,
+.settings-shell-dark .dashboard-card strong,
+.settings-shell-dark .recent-change-row {
+  color: #f0f5fb;
+}
+
+.settings-shell-dark .settings-title span,
+.settings-shell-dark .settings-group p,
+.settings-shell-dark .settings-content p,
+.settings-shell-dark .section-head span,
+.settings-shell-dark .dashboard-card span,
+.settings-shell-dark .dashboard-card p,
+.settings-shell-dark .recent-change-head span,
+.settings-shell-dark .recent-change-time {
+  color: #98a8bb;
+}
+
+.settings-shell-dark .settings-group,
+.settings-shell-dark .recent-change-head,
+.settings-shell-dark .recent-change-row,
+.settings-shell-dark .section-head {
+  border-color: #263344;
+}
+
+.settings-shell-dark .settings-group button {
+  color: #d3deec;
+}
+
+.settings-shell-dark .settings-group button span {
+  color: #cbd7e6;
+  background: #233246;
+}
+
+.settings-shell-dark .settings-group button:hover,
+.settings-shell-dark .settings-group button.active {
+  color: #ffffff;
+  background: #263b56;
+}
+
+.settings-shell-dark .section-head {
+  background: #182233;
+}
+
+.settings-shell-dark button,
+.settings-shell-dark input,
+.settings-shell-dark select,
+.settings-shell-dark textarea {
+  color: #dbe5f1;
+  background-color: #111827;
+  border-color: #34445a;
+}
+
+.settings-shell-dark button:hover {
+  background-color: #1f2d40;
+}
+
+.settings-shell-dark th {
+  color: #dbe5f1;
+  background: #1c2738;
+}
+
+.settings-shell-dark td {
+  color: #dbe5f1;
+  background: #151d2a;
+  border-color: #263344;
+}
+
+.settings-shell-dark tr:nth-child(even) td {
+  background: #172132;
+}
+
+.settings-shell-dark .editable-cell,
+.settings-shell-dark .table-wrap {
+  background: #151d2a;
+}
+
 .settings-main {
   display: grid;
-  grid-template-rows: 60px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr);
   min-width: 0;
 }
 
 .settings-cmdbar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   min-width: 0;
-  padding: 0 12px;
+  padding: 0 8px;
   background: #ffffff;
   border-bottom: 1px solid #d7dee8;
-}
-
-.crumb {
-  flex: 1;
-  min-width: 180px;
-  overflow: hidden;
-  color: #536578;
-  font-size: 13px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .settings-search {
   position: relative;
   width: 260px;
-}
-
-.settings-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 280px;
-  height: 30px;
-  padding: 0 9px;
-  overflow: hidden;
-  color: #23644a;
-  background: #e8f6ee;
-  border: 1px solid #c9e7d5;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .settings-content {
@@ -1286,45 +1355,7 @@ td.status-오류 {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 14px;
-}
-
-.settings-content-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-
-.settings-content-head h1,
-.settings-content-head p {
-  margin: 0;
-}
-
-.settings-content-head h1 {
-  font-size: 21px;
-}
-
-.settings-content-head p {
-  margin-top: 4px;
-  color: #65778b;
-}
-
-.settings-counts {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.settings-counts span {
-  padding: 6px 9px;
-  color: #34475b;
-  background: #ffffff;
-  border: 1px solid #d9e1eb;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 800;
+  padding: 8px;
 }
 
 .settings-content > .table-section,
@@ -1670,7 +1701,7 @@ td.status-오류 {
 
 .settings-table-section .table-wrap,
 .settings-content .split-view > .table-section .table-wrap {
-  height: min(670px, calc(100vh - 230px));
+  height: min(760px, calc(100vh - 150px));
   min-height: 360px;
   max-height: none;
 }

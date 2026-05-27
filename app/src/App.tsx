@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   AlertTriangle,
-  Check,
   CheckCircle2,
   ClipboardCheck,
   CloudDownload,
@@ -877,7 +876,6 @@ function App() {
   if (stage === 'rules') {
     return (
       <SettingsShell
-        status={status}
         profiles={profiles}
         rules={rules}
         settings={settingRows}
@@ -1438,7 +1436,6 @@ function HumanView({
 }
 
 function SettingsShell({
-  status,
   profiles,
   rules,
   settings,
@@ -1454,7 +1451,6 @@ function SettingsShell({
   onSaveStandardRules,
   onClose,
 }: {
-  status: string
   profiles: ServerColumnProfile[]
   rules: StandardColumnRule[]
   settings: Record<string, NoticeRow[]>
@@ -1472,13 +1468,13 @@ function SettingsShell({
 }) {
   const [activeMenu, setActiveMenu] = useState('dashboard')
   const [settingsSearch, setSettingsSearch] = useState('')
+  const [settingsDark, setSettingsDark] = useState(false)
   const settingTabs = settings.settingTabs ?? []
   const categories = buildSettingCategories(settingTabs)
   const activeTab = settingTabs.find((tab) => valueToText(tab.id) === activeMenu) ?? settingTabs[0]
   const activeCategory = valueToText(activeTab?.대분류) || categories[0]?.title || '설정'
   const visibleTabs = settingTabs.filter((tab) => valueToText(tab.대분류) === activeCategory)
   const menuGroups = buildSettingMenuGroups(visibleTabs, settings, rules)
-  const tabLabel = valueToText(activeTab?.라벨) || activeMenu
 
   useEffect(() => {
     if (!settingTabs.length) return
@@ -1488,7 +1484,7 @@ function SettingsShell({
   }, [activeMenu, settingTabs])
 
   return (
-    <div className="settings-shell">
+    <div className={`settings-shell ${settingsDark ? 'settings-shell-dark' : ''}`}>
       <aside className="settings-rail" aria-label="설정 주요 메뉴">
         <div className="rail-logo">G</div>
         {categories.map((category) => (
@@ -1524,33 +1520,24 @@ function SettingsShell({
 
       <main className="settings-main">
         <header className="settings-cmdbar">
-          <div className="crumb">설정 / {activeCategory} / {tabLabel}</div>
           <div className="settings-search">
             <Search size={15} />
             <input value={settingsSearch} onChange={(event) => setSettingsSearch(event.target.value)} placeholder="설정 검색" />
           </div>
-          <button type="button" title="화면 모드">
+          <button
+            type="button"
+            title={settingsDark ? '밝은 모드' : '다크 모드'}
+            aria-pressed={settingsDark}
+            onClick={() => setSettingsDark((value) => !value)}
+          >
             <Moon size={16} />
           </button>
-          <div className="settings-status">
-            <Check size={14} />
-            {status}
-          </div>
-          <button type="button" title="작업 화면으로 돌아가기" onClick={onClose}>
-            <PanelRightClose size={16} />
-          </button>
-          <button type="button" title="닫기" onClick={onClose}>
+          <button type="button" title="설정 닫기" onClick={onClose}>
             <X size={16} />
           </button>
         </header>
 
         <section className="settings-content">
-          <div className="settings-content-head">
-            <div>
-              <h1>{tabLabel}</h1>
-              <p>{settingsDescription(activeMenu, activeTab)}</p>
-            </div>
-          </div>
           {activeMenu === '표준 컬럼 룰' ? (
             <RulesView
               profiles={profiles}
@@ -1640,39 +1627,6 @@ function countSettingRowsForTab(tab: NoticeRow, settings: Record<string, NoticeR
   if (dataKey === 'standardColumns') return rules.length
   if (!dataKey) return null
   return settings[dataKey]?.length ?? 0
-}
-
-function settingsDescription(activeMenu: string, activeTab?: NoticeRow) {
-  const configured = valueToText(activeTab?.설명)
-  if (configured) return configured
-  const descriptions: Record<string, string> = {
-    '상태 요약': '수집, 전처리, 사람입력, 최종출력 단계와 설정 데이터 로딩 상태를 한 번에 봅니다.',
-    '수집 현황': 'A1 서버공고 컬럼 형식과 현재 수집 row 상태를 확인합니다.',
-    '표준 컬럼 룰': '서버공고 컬럼과 사용자가 정한 최종 컬럼 규칙을 한 화면에서 맞춥니다.',
-    적격심사기준: '1차 적격심사평가기준과 2차 적격심사기준 변경표를 함께 확인합니다.',
-    적격심사평가기준: '원발주처, 시행일, 건설유형, 금액 기준으로 1차 적격심사 기준을 찾는 마스터입니다.',
-    '적격심사 제외입찰방식': '적격심사세부기준을 찾지 않고 빈값을 정상 처리할 입찰방식을 관리합니다.',
-    공고확인: '공고확인 결과값, 검색키워드, 제외키워드를 관리합니다.',
-    특수실적: '종목별 특수실적 결과값과 검색키워드를 관리합니다.',
-    '특수실적 공통': '사업자 조건 성격의 특수실적 공통값을 별도 관리합니다.',
-    특수실적_공통: '사업자 조건 성격의 특수실적 공통값을 별도 관리합니다.',
-    '종목 매핑': '원본 종목 표현을 표준 종목, 대업종, 주력업종으로 정규화하는 표입니다.',
-    종목매핑: '원본 종목 표현을 표준 종목, 대업종, 주력업종으로 정규화하는 표입니다.',
-    발주처코드: '발주처명으로 발주처코드와 상위코드를 찾는 계산맨 lookup 마스터입니다.',
-    지역코드: '지역제한, 검색용현장, 일반 공사현장을 표준 지역값으로 바꾸는 행정지역 마스터입니다.',
-    '한전 배전사업소': '공사현장에 쓰는 한전 배전사업소와 인접 사업소 마스터입니다.',
-    '한전 송전사업소': '공사현장에 쓰는 한전 송전사업소 마스터입니다.',
-    폐광지역진흥지구: '공사현장 특수지역인 폐광지역진흥지구 마스터입니다.',
-    'API 컬럼형식': '최종 표준 컬럼의 표시형식, 처리방법, 우선순위, 참조방법을 관리합니다.',
-    '지역 설정': '행정지역, 사업소, 폐광지역진흥지구처럼 지역 계산에 쓰는 마스터를 탭별로 확인합니다.',
-    '발주처 변경': '발주처 원문 키워드를 적격발주처 기준명으로 바꾸는 순차 매핑표입니다.',
-    '파서맨 룰': 'A3 파싱용공고문에서 값을 채우는 설정 룰과 설정마스터 연결 룰을 확인합니다.',
-    '조건판단형태 가이드': '파서맨 조건판단형태 코드를 짧은 설명, 예시, 주의사항과 함께 봅니다.',
-    '샘플 공고 테스트': '공고번호 또는 붙여넣은 본문으로 파서맨 결과와 원문 근거를 즉시 검증합니다.',
-    '파서맨 리포트': '공고확인, 특수실적, 특수실적_공통 설정 중 파서맨 자동 대상과 사람 입력 대상을 점검합니다.',
-    '오류 리포트': '현재 단계별 데이터와 설정 연결 상태에서 우선 확인할 오류 후보를 보여줍니다.',
-  }
-  return descriptions[activeMenu] ?? '설정 데이터를 확인합니다.'
 }
 
 function createChangelogRows(
