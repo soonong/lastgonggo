@@ -2689,7 +2689,7 @@ function ParserNormalizationView({ search }: { search: string }) {
       </section>
 
       <div className="settings-subtabs" role="tablist" aria-label="공고문 정규화 상세">
-        {['요약', '번호/섹션', '표 복원', '문단', '원문줄', '파싱 결과', '근거'].map((tab) => (
+        {['요약', '번호/섹션', '문단', '원문줄', '표 복원', '파싱 결과', '근거'].map((tab) => (
           <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
             {tab}
           </button>
