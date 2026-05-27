@@ -1499,6 +1499,16 @@ function SettingsShell({
     }
   }
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!Object.keys(dirtyRef.current).length) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
+
   async function guardUnsavedChanges() {
     const dirtyItems = Object.values(dirtyRef.current)
     if (!dirtyItems.length) return true
@@ -1810,7 +1820,7 @@ function SettingsContent({
           {...editableProps('evaluationCriteria')}
         />
         <SettingsDatasetView
-          title="2차 적격심사기준 변경"
+          title="적격심사기준 2차변경"
           rows={settings.secondaryCriteria ?? []}
           search={search}
           preferredColumns={['id', '적격평가기준_세부 (매칭키)', '입찰방식', '종목', '공고확인', '특수실적', '원발주처', '적격발주처', '적격평가기준_세부', '메모']}
@@ -2028,6 +2038,8 @@ function SettingsDatasetView({
   const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [saveStatus, setSaveStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number | 'all'>(500)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -2039,11 +2051,20 @@ function SettingsDatasetView({
     setSaveStatus('')
   }, [title])
 
+  useEffect(() => {
+    setPage(1)
+  }, [rows, search, title])
+
   const sourceRows = editable ? draftRows : rows
   const filtered = filterSettingRows(sourceRows, search)
   const baseColumns = columnsForRows(filtered.length ? filtered : sourceRows, preferredColumns)
   const columns = datasetId === 'standardColumns' ? baseColumns.filter((col) => !STANDARD_COLUMNS_DEFAULT_HIDDEN.has(col)) : baseColumns
-  const displayed = filtered.slice(0, 500).map((row) => ({ ...row, __settingsIndex: sourceRows.indexOf(row) }))
+  const effectivePageSize = pageSize === 'all' ? Math.max(filtered.length, 1) : pageSize
+  const totalPages = Math.max(1, Math.ceil(filtered.length / effectivePageSize))
+  const safePage = Math.min(page, totalPages)
+  const pageStart = pageSize === 'all' ? 0 : (safePage - 1) * effectivePageSize
+  const pageRows = pageSize === 'all' ? filtered : filtered.slice(pageStart, pageStart + effectivePageSize)
+  const displayed = pageRows.map((row) => ({ ...row, __settingsIndex: sourceRows.indexOf(row) }))
   const isDirty = editable && JSON.stringify(draftRows.map(stripSettingsMeta)) !== JSON.stringify(rows.map(stripSettingsMeta))
 
   function changeCell(row: NoticeRow, col: string, value: string) {
@@ -2115,11 +2136,27 @@ function SettingsDatasetView({
           <h2>{title}</h2>
           <span>
             전체 {sourceRows.length.toLocaleString()}건 · 검색 {filtered.length.toLocaleString()}건 · 표시 {displayed.length.toLocaleString()}건
+            {totalPages > 1 ? ` · ${safePage.toLocaleString()}/${totalPages.toLocaleString()}쪽` : ''}
             {isDirty ? ' · 저장 필요' : ''}
           </span>
         </div>
         {editable || sourceRows.length ? (
           <div className="section-actions">
+            <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={safePage <= 1}>이전</button>
+            <select
+              className="page-size-select"
+              value={pageSize}
+              onChange={(event) => {
+                const value = event.target.value
+                setPageSize(value === 'all' ? 'all' : Number(value))
+                setPage(1)
+              }}
+            >
+              <option value={500}>500행</option>
+              <option value={1000}>1000행</option>
+              <option value="all">전체</option>
+            </select>
+            <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={safePage >= totalPages}>다음</button>
             <button type="button" onClick={downloadCsv}>내보내기</button>
             {editable ? (
               <>
