@@ -1863,7 +1863,7 @@ function SettingsContent({
   if (activeMenu === '폐광지역진흥지구') {
     return <SettingsDatasetView title="폐광지역진흥지구" rows={settings.regionMine ?? []} search={search} preferredColumns={['id', '광역', '시·군', '상세 구역']} {...editableProps('regionMine')} />
   }
-  if (activeMenu === 'API 컬럼형식') {
+  if (activeMenu === '공고분류컬럼 설정') {
     return <SettingsDatasetView title="공고분류컬럼 설정" rows={rules as unknown as NoticeRow[]} search={search} preferredColumns={preferredColumnsForSetting('standardColumns')} datasetId="standardColumns" dirtyLabel="공고분류컬럼 설정" onSaveRows={onSaveStandardRules} onDirtyChange={onDirtyChange} />
   }
   if (activeMenu === '발주처 변경') {
@@ -2816,7 +2816,7 @@ function RulesView({
   onDelete: () => void
 }) {
   const profileColumns = ['순번', '항목', '추정입력형식', '권장표시형식', '빈값비율', '예시값']
-  const ruleColumns = ['id', '항목', '표시형식', '처리방법', '우선순위', '참조메모', '서버공고일치']
+  const ruleColumns = ['id', '항목', '표시형식', '처리방법', '우선순위', '참조방법', '참조메모', '선택목록', '공고관리 표시', '상세정보입력']
   const editFields = [
     'id',
     '항목',
@@ -2828,8 +2828,6 @@ function RulesView({
     '선택목록',
     '공고관리 표시',
     '상세정보입력',
-    '서버공고일치',
-    '확정메모',
   ]
   return (
     <div className="split-view">
@@ -2867,7 +2865,7 @@ function RulesView({
           </label>
           {editFields.map((field) => (
             <label key={field} className={field === '참조방법' || field === '참조메모' || field === '선택목록' ? 'wide-field' : ''}>
-              <span>{field}</span>
+              <span title={columnHelp(field)}>{displayColumnName(field)}</span>
               {field === '참조방법' || field === '참조메모' || field === '선택목록' ? (
                 <textarea
                   value={ruleDraft[field] ?? ''}
