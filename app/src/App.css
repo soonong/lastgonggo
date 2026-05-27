@@ -1981,6 +1981,35 @@ td.status-오류 {
   line-height: 1.6;
 }
 
+.parser-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+}
+
+.parser-scope-grid label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px;
+  background: #ffffff;
+  border: 1px solid #d9e4ef;
+  border-radius: 4px;
+}
+
+.parser-scope-grid span {
+  color: #6b7d90;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.parser-scope-grid b {
+  color: #12263a;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .parser-guide-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2099,7 +2128,8 @@ td.status-오류 {
 }
 
 .settings-shell-dark .parser-guide-nav,
-.settings-shell-dark .parser-policy-list label {
+.settings-shell-dark .parser-policy-list label,
+.settings-shell-dark .parser-scope-grid label {
   background: #111827;
   border-color: #263344;
 }
@@ -2110,8 +2140,13 @@ td.status-오류 {
 .settings-shell-dark .parser-guide-section ol,
 .settings-shell-dark .parser-guide-policy ul,
 .settings-shell-dark .parser-guide-example p,
-.settings-shell-dark .parser-guide-example b {
+.settings-shell-dark .parser-guide-example b,
+.settings-shell-dark .parser-scope-grid b {
   color: #dbe5f1;
+}
+
+.settings-shell-dark .parser-scope-grid span {
+  color: #93a4b8;
 }
 
 .settings-table-section .table-wrap,

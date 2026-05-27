@@ -1953,7 +1953,24 @@ function preferredColumnsForSetting(key: string) {
     profileInfo: ['id', '항목', '값', '메모'],
     excludedItems: ['id', '종목', '사용여부', '메모'],
     changelog: ['id', '일시', '구분', '대상', '내용', '사용자', '메모'],
-    parserTypeGuide: ['조건판단형태', '이름', '용도', '출력', '판단로직', '영향정책', '예시본문', '결과예시', '주의', '토글비고'],
+    parserTypeGuide: [
+      '조건판단형태',
+      '이름',
+      '용도',
+      '출력',
+      '정규화범위',
+      '키워드매칭방식',
+      '우선섹션분류',
+      'fallback범위',
+      '제외검사범위',
+      '근거저장단위',
+      '판단로직',
+      '영향정책',
+      '예시본문',
+      '결과예시',
+      '주의',
+      '토글비고',
+    ],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
     sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
     bidMethodSkip: ['id', '입찰방식', '메모'],
@@ -2467,6 +2484,14 @@ function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: stri
   const logic = splitGuideItems(active?.['판단로직'])
   const policies = splitGuideItems(active?.['영향정책'])
   const disabledNote = valueToText(active?.['토글비고']).trim()
+  const scopeRows = [
+    ['정규화범위', valueToText(active?.['정규화범위'])],
+    ['키워드매칭방식', valueToText(active?.['키워드매칭방식'])],
+    ['우선섹션분류', valueToText(active?.['우선섹션분류'])],
+    ['fallback범위', valueToText(active?.['fallback범위'])],
+    ['제외검사범위', valueToText(active?.['제외검사범위'])],
+    ['근거저장단위', valueToText(active?.['근거저장단위'])],
+  ].filter(([, value]) => value.trim())
 
   return (
     <div className="parser-guide-view">
@@ -2535,6 +2560,18 @@ function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: stri
                 <em>→ {valueToText(active['출력']) || valueToText(active['결과예시'])}</em>
               </div>
               <p className="parser-guide-desc">{valueToText(active['용도'])}</p>
+
+              <div className="parser-guide-section">
+                <strong>기본 파싱 범위</strong>
+                <div className="parser-scope-grid">
+                  {scopeRows.map(([label, value]) => (
+                    <label key={label}>
+                      <span>{label}</span>
+                      <b>{value}</b>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
               <div className="parser-guide-section">
                 <strong>판단 로직 (이 순서대로)</strong>
