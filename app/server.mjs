@@ -46,7 +46,7 @@ const settingFiles = {
   transmissionOffice: '송전사업소.csv',
   powerPlantRegion: '발전소지역.csv',
   regionHint: '지역힌트.csv',
-  parserRules: '파서맨_룰.csv',
+  parserRules: '문서곡괭이_룰.csv',
   parserTypeGuide: '조건판단형태_가이드.csv',
   bidMethodSkip: '적격심사_제외입찰방식.csv',
   reviewQueue: '검수대기열.csv',
@@ -377,7 +377,7 @@ async function parsermanRuleTest(req, res) {
   const rule = data.rule && typeof data.rule === 'object' ? data.rule : null
   const body = String(data.body || data.html || rule?.['예시본문'] || '').trim()
   if (!rule) {
-    sendJson(res, 400, { error: 'missing_rule', message: '테스트할 파서맨 룰이 필요합니다.' })
+    sendJson(res, 400, { error: 'missing_rule', message: '테스트할 문서곡괭이 룰이 필요합니다.' })
     return
   }
   if (!body) {
@@ -523,7 +523,7 @@ function applyEditableParserRules(text, blocks, fields, evidence, matches, rules
       column,
       value: parsed.value,
       type,
-      settingTable: '파서맨_룰',
+      settingTable: '문서곡괭이_룰',
       ruleId: rule.id || column,
       matchedKeyword: parsed.matchedKeyword,
       sourceText: parsed.sourceText,

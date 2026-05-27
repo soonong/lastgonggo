@@ -128,7 +128,7 @@ const priorityColumns = [
   '적격_처치방법',
 ]
 
-const hiddenMainColumns = new Set(['공고본문', '공고본문_HTML', '파서맨근거'])
+const hiddenMainColumns = new Set(['공고본문', '공고본문_HTML', '문서곡괭이근거'])
 const conservativeKeepApiColumns = new Set(['공고번호', '공사명', '발주처', '입력일', '지역제한', '종목', '추정가격', '기초금액', '추정금액'])
 
 const humanEditFields = [
@@ -192,13 +192,13 @@ function mergeParserFields(row: NoticeRow, result: ParserResult, rules: Standard
     next['공고본문_HTML'] = result.html
   }
   if (evidenceRows.length) {
-    next['파서맨근거'] = evidenceRows.join('\n\n')
+    next['문서곡괭이근거'] = evidenceRows.join('\n\n')
   }
   if (filled.length) {
     next['문서곡괭이컬럼'] = filled.join(',')
   }
   if (conflicts.length) {
-    next['검증메모'] = joinMemo(next['검증메모'], `API/파서 값 충돌: ${conflicts.join(',')}`)
+    next['검증메모'] = joinMemo(next['검증메모'], `API/문서곡괭이 값 충돌: ${conflicts.join(',')}`)
   }
 
   return { row: next, filled, conflicts }
@@ -587,7 +587,7 @@ function App() {
         } catch (error) {
           failed += 1
           merged['검증상태'] = '오류'
-          merged['검증메모'] = joinMemo(merged['검증메모'], `A3 파서맨 실패: ${error instanceof Error ? error.message : String(error)}`)
+          merged['검증메모'] = joinMemo(merged['검증메모'], `A3 문서곡괭이 실패: ${error instanceof Error ? error.message : String(error)}`)
           addLog(`[${index + 1}/${targetRows.length}] ${gongo} A3 실패`)
         }
       } else {
@@ -641,11 +641,11 @@ function App() {
     if (!selectedRow) return
     const gongo = valueToText(selectedRow['공고번호'])
     if (!gongo) {
-      setStatus('A3 파서맨: 공고번호가 없습니다.')
+      setStatus('A3 문서곡괭이: 공고번호가 없습니다.')
       return
     }
     setLoading(true)
-    setStatus(`A3 파서맨 실행 중: ${gongo}`)
+    setStatus(`A3 문서곡괭이 실행 중: ${gongo}`)
     try {
       const result = await fetchA3Parser(gongo)
       setParserCache((prev) => ({ ...prev, [gongo]: result }))
@@ -655,8 +655,8 @@ function App() {
           .map(([key, value]) => `${key}: ${value}`)
           .join('\n\n'),
       )
-      setStatus(`A3 파서맨 후보 ${Object.keys(result.fields).length}개 추출`)
-      addLog(`A3 파서맨 후보 ${Object.keys(result.fields).length}개: ${gongo}`)
+      setStatus(`A3 문서곡괭이 후보 ${Object.keys(result.fields).length}개 추출`)
+      addLog(`A3 문서곡괭이 후보 ${Object.keys(result.fields).length}개: ${gongo}`)
     } catch (error) {
       setParserNote(error instanceof Error ? error.message : String(error))
       setStatus(error instanceof Error ? error.message : String(error))
@@ -1385,7 +1385,7 @@ function HumanView({
             </button>
             <button className="inline-action" type="button" onClick={onA3Parse} disabled={!allRows.length || loading}>
               <Search size={16} />
-              A3 파서맨
+              A3 문서곡괭이
             </button>
             <button className="inline-action" type="button" onClick={onFinalize} disabled={!allRows.length}>
               <ClipboardCheck size={16} />
@@ -1417,8 +1417,8 @@ function HumanView({
             </label>
           ))}
           <label className="wide-field">
-            <span>파서맨 근거</span>
-            <textarea value={parserNote} readOnly placeholder="A3 파서맨 실행 시 rule/source 근거가 표시됩니다." />
+            <span>문서곡괭이 근거</span>
+            <textarea value={parserNote} readOnly placeholder="A3 문서곡괭이 실행 시 rule/source 근거가 표시됩니다." />
           </label>
         </div>
       </section>
@@ -1869,7 +1869,7 @@ function SettingsContent({
   if (activeMenu === '발주처 변경') {
     return <SettingsDatasetView title="적격발주처 변경" rows={settings.orgMap ?? []} search={search} preferredColumns={['id', '발주처 키워드', '매핑 대상']} {...editableProps('orgMap')} />
   }
-  if (activeMenu === '파서맨 룰') {
+  if (activeMenu === '문서곡괭이 룰') {
     return (
       <ParserRuleEditor rows={settings.parserRules ?? []} search={search} parserTypeGuide={settings.parserTypeGuide ?? []} onSave={(rows) => onSaveSetting('parserRules', rows)} />
     )
@@ -1888,7 +1888,7 @@ function SettingsContent({
   if (activeMenu === '샘플 공고 테스트') {
     return <ParsermanTestView search={search} parserRules={settings.parserRules ?? []} />
   }
-  if (activeMenu === '파서맨 리포트') {
+  if (activeMenu === '문서곡괭이 리포트') {
     return <ParsermanReport settings={settings} search={search} />
   }
   if (activeMenu === '오류 리포트') {
@@ -2140,6 +2140,7 @@ function SettingsDatasetView({
         rows={displayed}
         emptyText={`${title} 데이터가 없습니다.`}
         editable={editable}
+        standardColumnMode={datasetId === 'standardColumns'}
         onCellChange={changeCell}
         onRowClick={editable ? (row) => setSelectedIndex(Number(row.__settingsIndex)) : undefined}
         rowClassName={editable ? (row) => (Number(row.__settingsIndex) === selectedIndex ? 'selected-row' : '') : undefined}
@@ -2337,7 +2338,7 @@ function ParserRuleEditor({
       문맥범위: '200',
       gap: '15',
       우선순위: String(Number(nextId) * 10),
-      설명: '새 파서맨 룰',
+      설명: '새 문서곡괭이 룰',
     })
     const saved = await onSave([...normalizedRows, nextRule])
     setSelectedId(nextId)
@@ -2378,7 +2379,7 @@ function ParserRuleEditor({
       <section className="editor-panel">
         <div className="section-head">
           <div>
-            <h2>파서맨 룰 편집</h2>
+            <h2>문서곡괭이 룰 편집</h2>
             <span>{status}</span>
           </div>
           <div className="panel-actions">
@@ -2449,7 +2450,7 @@ function ParserRuleEditor({
         ) : null}
       </section>
       <SettingsDatasetView
-        title="파서맨 룰 목록"
+        title="문서곡괭이 룰 목록"
         rows={normalizedRows}
         search={search}
         preferredColumns={['id', '사용여부', '대상컬럼', '조건판단형태', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명']}
@@ -2488,7 +2489,7 @@ function ParsermanTestView({ search, parserRules }: { search: string; parserRule
     try {
       const next = await runParsermanTest(mode === 'a3' ? { gongsanum } : { body, gongsanum: gongsanum || 'SAMPLE' })
       setResult(next)
-      setStatus(`파서맨 완료: ${Object.keys(next.fields ?? {}).length.toLocaleString()}개 컬럼, 근거 ${(next.matches ?? []).length.toLocaleString()}건`)
+      setStatus(`문서곡괭이 완료: ${Object.keys(next.fields ?? {}).length.toLocaleString()}개 컬럼, 근거 ${(next.matches ?? []).length.toLocaleString()}건`)
     } catch (error) {
       setResult(null)
       setStatus(error instanceof Error ? error.message : String(error))
@@ -2541,9 +2542,9 @@ function ParsermanTestView({ search, parserRules }: { search: string; parserRule
           <span className="parser-test-status">{status}</span>
         </div>
       </section>
-      <SettingsDatasetView title="파서맨 결과" rows={fieldRows} search={search} preferredColumns={['컬럼', '값', '근거수']} />
+      <SettingsDatasetView title="문서곡괭이 결과" rows={fieldRows} search={search} preferredColumns={['컬럼', '값', '근거수']} />
       <SettingsDatasetView
-        title="파서맨 근거"
+        title="문서곡괭이 근거"
         rows={evidenceRows}
         search={search}
         preferredColumns={['순번', '컬럼', '값', '조건판단형태', '참조마스터', 'rule_id', 'matched_keyword', 'source_text']}
@@ -2580,7 +2581,7 @@ function ParsermanReport({ settings, search }: { settings: Record<string, Notice
       메모: '검색키워드가 비어 있으면 자동 파싱하지 않고 사람이 입력합니다.',
     }
   })
-  return <SettingsDatasetView title="파서맨 리포트" rows={rows} search={search} preferredColumns={['구분', '전체', '자동파싱대상', '사람입력대상', '결과값중복', '상태', '메모']} />
+  return <SettingsDatasetView title="문서곡괭이 리포트" rows={rows} search={search} preferredColumns={['구분', '전체', '자동파싱대상', '사람입력대상', '결과값중복', '상태', '메모']} />
 }
 
 function duplicatedValues(rows: NoticeRow[], key: string) {
@@ -2763,8 +2764,8 @@ const COLUMN_LABELS: Record<string, string> = {
 const COLUMN_HELP: Record<string, string> = {
   항목: '최종 공고분류 엑셀과 화면에서 사용하는 표준 컬럼명입니다.',
   표시형식: '값을 날짜, 금액, 숫자, 텍스트처럼 어떤 형식으로 보여줄지 정합니다.',
-  처리방법: '계산, 수집, 둘다, 공란 중 하나입니다. 수집은 서버공고/파서맨 수집값, 계산은 참조방법 코드로 값을 만듭니다.',
-  우선순위: '같은 컬럼에 서버정보와 파서맨정보가 함께 있을 때 어떤 출처를 최종값으로 쓸지 정합니다.',
+  처리방법: '계산, 수집, 둘다, 공란 중 하나입니다. 수집은 서버공고/문서곡괭이 수집값, 계산은 참조방법 코드로 값을 만듭니다.',
+  우선순위: '같은 컬럼에 서버정보와 문서곡괭이 정보가 함께 있을 때 어떤 출처를 최종값으로 쓸지 정합니다.',
   참조방법: '처리방법이 계산 또는 둘다일 때 사용하는 코드형 규칙입니다. 참조메모를 기준으로 작성합니다.',
   참조메모: '참조방법 코드가 무엇을 계산하거나 조회하는지 사람이 이해할 수 있게 적어둡니다.',
   선택목록: '컬럼 입력 시 사용할 목록입니다. 상세 화면과 표 편집 드롭다운/검증 기준으로 씁니다.',
@@ -2778,7 +2779,7 @@ const CHECKBOX_COLUMNS = new Set(['공고관리 표시', '상세정보입력'])
 const STANDARD_COLUMNS_DEFAULT_HIDDEN = new Set(['서버공고일치', '확정메모'])
 const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
   처리방법: ['', '계산', '수집', '둘다'],
-  우선순위: ['', '서버정보', '파서맨정보', '문서곡괭이', '계산', 'LLM'],
+  우선순위: ['', '서버정보', '문서곡괭이'],
 }
 
 function displayColumnName(col: string) {
@@ -2970,6 +2971,7 @@ function DataTable({
   emptyText,
   onRowClick,
   editable = false,
+  standardColumnMode = false,
   onCellChange,
   rowClassName,
 }: {
@@ -2978,6 +2980,7 @@ function DataTable({
   emptyText: string
   onRowClick?: (row: NoticeRow) => void
   editable?: boolean
+  standardColumnMode?: boolean
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
 }) {
@@ -3071,8 +3074,8 @@ function DataTable({
                   style={columnStyle(col)}
                   aria-sort={activeSort === 'asc' ? 'ascending' : activeSort === 'desc' ? 'descending' : 'none'}
                 >
-                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={columnHelp(col)}>
-                    <span className="th-label">{displayColumnName(col)}</span>
+                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={standardColumnMode ? columnHelp(col) : `${col} 기준으로 정렬합니다.`}>
+                    <span className="th-label">{standardColumnMode ? displayColumnName(col) : col}</span>
                     <span className="sort-indicator" aria-hidden="true">
                       {activeSort === 'asc' ? '▲' : activeSort === 'desc' ? '▼' : ''}
                     </span>
@@ -3105,7 +3108,7 @@ function DataTable({
                   style={columnStyle(col)}
                   title={valueToText(row[col])}
                 >
-                    {editable && CHECKBOX_COLUMNS.has(col) ? (
+                    {editable && standardColumnMode && CHECKBOX_COLUMNS.has(col) ? (
                       <label className="cell-checkbox" onClick={(event) => event.stopPropagation()} title={columnHelp(col)}>
                         <input
                           type="checkbox"
@@ -3113,7 +3116,7 @@ function DataTable({
                           onChange={(event) => onCellChange?.(row, col, event.target.checked ? '1' : '')}
                         />
                       </label>
-                    ) : editable && SELECT_COLUMN_OPTIONS[col] ? (
+                    ) : editable && standardColumnMode && SELECT_COLUMN_OPTIONS[col] ? (
                       <select
                         className="cell-select"
                         value={valueToText(row[col])}
@@ -3121,7 +3124,7 @@ function DataTable({
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => onCellChange?.(row, col, event.target.value)}
                       >
-                        {Array.from(new Set([...SELECT_COLUMN_OPTIONS[col], valueToText(row[col])])).map((option) => (
+                        {SELECT_COLUMN_OPTIONS[col].map((option) => (
                           <option key={option} value={option}>
                             {option || '(빈값)'}
                           </option>
@@ -3287,12 +3290,12 @@ function NoticeDetailModal({
                 <div className="doc-placeholder">
                   <FileSpreadsheet size={30} />
                   <strong>A3 파싱용공고문 영역</strong>
-                  <span>A3 HTML이 없는 공고는 파서맨 텍스트 미리보기를 먼저 보여줍니다.</span>
+                  <span>A3 HTML이 없는 공고는 문서곡괭이 텍스트 미리보기를 먼저 보여줍니다.</span>
                 </div>
                 <dl>
                   <div>
                     <dt>공고본문</dt>
-                    <dd>{valueToText(row['공고본문']) || 'A3 파서맨 실행 후 본문 미리보기가 표시됩니다.'}</dd>
+                    <dd>{valueToText(row['공고본문']) || 'A3 문서곡괭이 실행 후 본문 미리보기가 표시됩니다.'}</dd>
                   </div>
                   <div>
                     <dt>참가자격</dt>
@@ -3592,3 +3595,5 @@ function QualificationPanel({
 }
 
 export default App
+
+
