@@ -722,6 +722,23 @@ textarea:focus {
   width: 104px;
 }
 
+.table-section .section-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.table-section .section-actions button,
+.table-section .section-actions select {
+  height: 32px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.table-section .section-actions button {
+  padding: 0 10px;
+}
+
 .table-frame {
   flex: 1 1 auto;
   display: flex;
