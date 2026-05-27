@@ -2638,6 +2638,13 @@ function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: stri
           <li>7_1은 공고확인, 특수실적, 특수실적_공통 같은 설정 마스터와 연결됩니다.</li>
         </ul>
       </section>
+
+      <SettingsDatasetView
+        title="조건판단형태 범위 표"
+        rows={visibleRows}
+        search=""
+        preferredColumns={preferredColumnsForSetting('parserTypeGuide')}
+      />
     </div>
   )
 }
