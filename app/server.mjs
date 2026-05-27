@@ -49,6 +49,7 @@ const settingFiles = {
   regionHint: '지역힌트.csv',
   parserRules: '문서곡괭이_룰.csv',
   parserTypeGuide: '조건판단형태_가이드.csv',
+  sectionRules: '섹션분류_룰.csv',
   bidMethodSkip: '적격심사_제외입찰방식.csv',
   reviewQueue: '검수대기열.csv',
   profileInfo: '프로필.csv',
@@ -522,7 +523,7 @@ function normalizeNoticeDocument(html) {
       길이: text.length,
     }
   })
-  const sections = buildSections(hardBlocks)
+  const sections = classifySections(buildSections(hardBlocks), readSectionRuleRows())
   const tables = detectTables(rawLines)
   return {
     rawLines,
@@ -612,6 +613,72 @@ function buildSections(blocks) {
   }
   if (current) sections.push(current)
   return sections
+}
+
+function readSectionRuleRows() {
+  try {
+    return readCsv(path.join(paths.settingsDir, settingFiles.sectionRules))
+      .filter((row) => String(row['사용여부'] ?? '1').trim().toLowerCase() !== 'false' && String(row['사용여부'] ?? '1').trim() !== '0')
+      .sort((a, b) => (Number(a['우선순위']) || Number(a.id) || 0) - (Number(b['우선순위']) || Number(b.id) || 0))
+  } catch {
+    return []
+  }
+}
+
+function splitKeywords(value) {
+  return String(value || '')
+    .split(/[,\n/]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function findKeyword(text, keywords) {
+  const haystack = String(text || '').replace(/\s+/g, '')
+  return keywords.find((keyword) => haystack.includes(String(keyword || '').replace(/\s+/g, ''))) || ''
+}
+
+function classifySections(sections, rules) {
+  if (!rules.length) return sections
+  return sections.map((section) => {
+    const title = `${section.번호 || ''} ${section.제목 || ''}`
+    const body = `${section.내용미리보기 || ''}`
+    const allText = `${title} ${body}`
+    for (const rule of rules) {
+      const exclude = findKeyword(allText, splitKeywords(rule['제외키워드']))
+      if (exclude) {
+        const titleHit = findKeyword(title, splitKeywords(rule['제목키워드']))
+        const bodyHit = findKeyword(body, splitKeywords(rule['본문키워드']))
+        if (titleHit || bodyHit) {
+          return {
+            ...section,
+            섹션분류: '',
+            분류근거: titleHit ? `제목:${titleHit}` : `본문:${bodyHit}`,
+            제외여부: `제외:${exclude}`,
+          }
+        }
+        continue
+      }
+      const titleHit = findKeyword(title, splitKeywords(rule['제목키워드']))
+      if (titleHit) {
+        return {
+          ...section,
+          섹션분류: String(rule['섹션분류'] || ''),
+          분류근거: `제목:${titleHit}`,
+          제외여부: '',
+        }
+      }
+      const bodyHit = findKeyword(body, splitKeywords(rule['본문키워드']))
+      if (bodyHit) {
+        return {
+          ...section,
+          섹션분류: String(rule['섹션분류'] || ''),
+          분류근거: `본문:${bodyHit}`,
+          제외여부: '',
+        }
+      }
+    }
+    return { ...section, 섹션분류: '', 분류근거: '', 제외여부: '' }
+  })
 }
 
 function detectTables(lines) {

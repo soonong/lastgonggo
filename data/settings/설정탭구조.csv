@@ -19,8 +19,9 @@ master.kepcoOffice,마스터데이터,Database,지역,한전 배전사업소,kep
 master.transmissionOffice,마스터데이터,Database,지역,한전 송전사업소,transmissionOffice,table,한전 송전사업소를 관리합니다.,18
 master.powerPlantRegion,마스터데이터,Database,지역,발전소지역,powerPlantRegion,table,발전소 특수지역을 관리합니다.,19
 master.regionMine,마스터데이터,Database,지역,폐광지역진흥지구,regionMine,table,폐광지역진흥지구를 관리합니다.,20
-review.parser,검수,ClipboardCheck,검수,문서곡괭이 검증,parserRules,parser,문서곡괭이 룰 편집과 조건판단형태 가이드를 확인합니다.,21
-review.parserGuide,검수,ClipboardCheck,검수,조건판단형태 가이드,parserTypeGuide,guide,문서곡괭이 조건판단형태 15종을 홈페이지 기준으로 확인합니다.,22
-review.normalizer,검수,ClipboardCheck,검수,공고문 정규화 검증,,normalizer,"A3 파싱용공고문을 줄, 문단, 번호, 표 후보로 정규화하고 문서곡괭이 근거를 함께 검증합니다.",23
-profile.settings,내설정,UserRound,내설정,내설정,profileInfo,table,사용자 설정을 관리합니다.,24
-changelog,변경로그,History,변경로그,변경로그,changelog,table,설정 변경 이력을 확인합니다.,25
+review.parser,검수,ClipboardCheck,공고문 파싱 가이드,문서곡괭이 검증,parserRules,parser,문서곡괭이 룰 편집과 조건판단형태 가이드를 확인합니다.,21
+review.parserGuide,검수,ClipboardCheck,공고문 파싱 가이드,조건판단형태 가이드,parserTypeGuide,guide,문서곡괭이 조건판단형태 15종을 홈페이지 기준으로 확인합니다.,22
+review.normalizer,검수,ClipboardCheck,공고문 정규화 가이드,공고문 정규화 검증,,normalizer,"A3 파싱용공고문을 줄, 문단, 번호, 표 후보로 정규화하고 문서곡괭이 근거를 함께 검증합니다.",23
+review.sectionRules,검수,ClipboardCheck,공고문 정규화 가이드,섹션설정,sectionRules,table,공고문 대섹션을 공동계약·입찰참가자격 등으로 자동 분류하는 키워드 기준표입니다.,24
+profile.settings,내설정,UserRound,내설정,내설정,profileInfo,table,사용자 설정을 관리합니다.,25
+changelog,변경로그,History,변경로그,변경로그,changelog,table,설정 변경 이력을 확인합니다.,26

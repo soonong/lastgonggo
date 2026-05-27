@@ -86,6 +86,7 @@ const settingsLoadKeys = [
   'regionHint',
   'parserRules',
   'parserTypeGuide',
+  'sectionRules',
   'bidMethodSkip',
   'reviewQueue',
   'profileInfo',
@@ -1954,6 +1955,7 @@ function preferredColumnsForSetting(key: string) {
     changelog: ['id', '일시', '구분', '대상', '내용', '사용자', '메모'],
     parserTypeGuide: ['조건판단형태', '이름', '용도', '출력', '판단로직', '영향정책', '예시본문', '결과예시', '주의', '토글비고'],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
+    sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
     bidMethodSkip: ['id', '입찰방식', '메모'],
   }
   return map[key] ?? ['id', '항목', '값', '메모']
@@ -2192,6 +2194,7 @@ function SettingsDatasetView({
         columns={columns}
         rows={displayed}
         emptyText={`${title} 데이터가 없습니다.`}
+        tableId={`settings:${datasetId ?? settingKey ?? title}`}
         editable={editable}
         standardColumnMode={datasetId === 'standardColumns'}
         onCellChange={changeCell}
@@ -2602,84 +2605,14 @@ function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: stri
   )
 }
 
-const DEFAULT_NORMALIZE_NOTICE_LIST = `E052600267
-2026-06665
-2026-06695
-2026-06756
-E012603961
-2026-06766
-R26BK01541680-000
-R26BK01543262-000
-R26BK01543632-000
-R26BK01541710-000
-R26BK01538129-001
-R26BK01542507-000
-R26BK01542535-000
-R26BK01543534-000
-2026-06706
-2026-06675
-2026-06734
-2026-06725
-E062600277
-2026-06769
-R26BK01543029-001
-2026-06772
-R26BK01541168-000
-R26BK01527282-000
-2026-06640
-R26BK01539768-000
-R26BK01541795-000
-R26BK01540892-000
-R26BK01539713-000
-R26BK01542230-000
-R26BK01544273-000
-R26BK01541845-000
-R26BK01539896-000
-R26BK01542313-000
-R26BK01540780-000
-R26BK01541172-000
-R26BK01544151-000
-R26BK01539229-000
-R26BK01540966-000
-R26BK01541164-000
-R26BK01542496-000
-R26BK01542023-000
-R26BK01543582-000
-R26BK01544282-000
-R26BK01543894-000
-R26BK01541768-000
-R26BK01540580-000
-R26BK01542096-000
-R26BK01538591-000
-R26BK01544276-000
-R26BK01541404-000
-R26BK01542109-000
-R26BK01541956-001
-R26BK01542080-001
-R26BK01535085-000
-R26BK01538707-000
-R26BK01544026-000
-R26BK01539677-000
-R26BK01543297-000
-R26BK01543245-000
-R26BK01540238-000
-R26BK01457605-000`
-
 function ParserNormalizationView({ search }: { search: string }) {
-  const [noticeList, setNoticeList] = useState(DEFAULT_NORMALIZE_NOTICE_LIST)
   const [activeNotice, setActiveNotice] = useState('2026-06694')
   const [result, setResult] = useState<ParserNormalizationResult | null>(null)
-  const [batchRows, setBatchRows] = useState<NoticeRow[]>([])
-  const [activeTab, setActiveTab] = useState('번호/섹션')
+  const [activeTab, setActiveTab] = useState('요약')
   const [status, setStatus] = useState('공고번호를 넣고 A3 정규화를 실행하세요.')
   const [loading, setLoading] = useState(false)
 
-  const notices = useMemo(
-    () => noticeList.split(/\s+/).map((item) => item.trim()).filter(Boolean),
-    [noticeList],
-  )
-
-  async function runOne(target = activeNotice.trim() || notices[0]) {
+  async function runOne(target = activeNotice.trim()) {
     if (!target) {
       setStatus('공고번호가 필요합니다.')
       return
@@ -2690,6 +2623,7 @@ function ParserNormalizationView({ search }: { search: string }) {
       const next = await fetchA3Normalization(target)
       setResult(next)
       setActiveNotice(target)
+      setActiveTab('요약')
       setStatus(
         `${target} 정규화 완료: 문단 ${next.normalized.hardBlocks.length.toLocaleString()}개, 섹션 ${next.normalized.sections.length.toLocaleString()}개, 표후보 ${next.normalized.tables.length.toLocaleString()}개`,
       )
@@ -2701,56 +2635,21 @@ function ParserNormalizationView({ search }: { search: string }) {
     }
   }
 
-  async function runBatch() {
-    setLoading(true)
-    const rows: NoticeRow[] = []
-    setBatchRows([])
-    try {
-      for (const [index, notice] of notices.entries()) {
-        setStatus(`[${index + 1}/${notices.length}] ${notice} 정규화 중...`)
-        try {
-          const item = await fetchA3Normalization(notice)
-          rows.push({
-            공고번호: notice,
-            상태: '성공',
-            HTML: item.htmlLength,
-            텍스트: item.textLength,
-            원문줄: item.normalized.rawLines.length,
-            문단: item.normalized.hardBlocks.length,
-            섹션: item.normalized.sections.length,
-            표후보: item.normalized.tables.length,
-            이미지: item.normalized.imageCount,
-            파싱컬럼: item.parserSummary.fieldCount,
-            근거: item.parserSummary.matchCount,
-            경고: item.normalized.warnings.join(' / '),
-            오류: '',
-          })
-          if (!result) setResult(item)
-        } catch (error) {
-          rows.push({
-            공고번호: notice,
-            상태: '오류',
-            HTML: '',
-            텍스트: '',
-            원문줄: '',
-            문단: '',
-            섹션: '',
-            표후보: '',
-            이미지: '',
-            파싱컬럼: '',
-            근거: '',
-            경고: '',
-            오류: error instanceof Error ? error.message : String(error),
-          })
-        }
-        setBatchRows([...rows])
-      }
-      setStatus(`목록 테스트 완료: ${rows.filter((row) => row.상태 === '성공').length}/${rows.length}건 성공`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const summaryRows = result
+    ? [
+        { 항목: '공고번호', 값: result.공고번호 },
+        { 항목: 'HTML 길이', 값: result.htmlLength },
+        { 항목: '텍스트 길이', 값: result.textLength },
+        { 항목: '원문줄', 값: result.normalized.rawLines.length },
+        { 항목: '문단', 값: result.normalized.hardBlocks.length },
+        { 항목: '섹션', 값: result.normalized.sections.length },
+        { 항목: '표 후보', 값: result.normalized.tables.length },
+        { 항목: '이미지', 값: result.normalized.imageCount },
+        { 항목: '파싱 컬럼', 값: result.parserSummary.fieldCount },
+        { 항목: '근거', 값: result.parserSummary.matchCount },
+        { 항목: '경고', 값: result.normalized.warnings.join(' / ') },
+      ]
+    : []
   const rawLineRows = (result?.normalized.rawLines ?? []).map((원문, index) => ({ 순번: index + 1, 원문 }))
   const softRows = (result?.normalized.softBlocks ?? []).map((원문, index) => ({ 순번: index + 1, 원문 }))
   const fieldRows = result
@@ -2773,46 +2672,35 @@ function ParserNormalizationView({ search }: { search: string }) {
   return (
     <div className="settings-stack parser-normalization-view">
       <section className="parser-test-panel">
-        <div className="parser-test-grid">
-          <label>
-            <span>선택 공고번호</span>
-            <input value={activeNotice} onChange={(event) => setActiveNotice(event.target.value)} placeholder="예: 2026-06694" />
-          </label>
-          <label className="parser-body-input">
-            <span>테스트 공고번호 목록</span>
-            <textarea value={noticeList} onChange={(event) => setNoticeList(event.target.value)} />
-          </label>
-        </div>
-        <div className="panel-actions">
+        <div className="parser-normalization-actions">
+          <input
+            className="parser-notice-input"
+            value={activeNotice}
+            onChange={(event) => setActiveNotice(event.target.value)}
+            placeholder="공고번호"
+            aria-label="공고번호"
+          />
           <button type="button" onClick={() => runOne()} disabled={loading}>
             <FileCheck2 size={16} />
             선택 공고 정규화
-          </button>
-          <button type="button" onClick={runBatch} disabled={loading || !notices.length}>
-            <Play size={16} />
-            목록 테스트
           </button>
           <span className="parser-test-status">{status}</span>
         </div>
       </section>
 
-      <SettingsDatasetView
-        title="공고문 정규화 목록 결과"
-        rows={batchRows}
-        search={search}
-        preferredColumns={['공고번호', '상태', 'HTML', '텍스트', '원문줄', '문단', '섹션', '표후보', '이미지', '파싱컬럼', '근거', '경고', '오류']}
-      />
-
       <div className="settings-subtabs" role="tablist" aria-label="공고문 정규화 상세">
-        {['번호/섹션', '표 복원', '문단', '원문줄', '파싱 결과', '근거'].map((tab) => (
+        {['요약', '번호/섹션', '표 복원', '문단', '원문줄', '파싱 결과', '근거'].map((tab) => (
           <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
             {tab}
           </button>
         ))}
       </div>
 
+      {activeTab === '요약' ? (
+        <SettingsDatasetView title="공고문 정규화 요약" rows={summaryRows} search={search} preferredColumns={['항목', '값']} />
+      ) : null}
       {activeTab === '번호/섹션' ? (
-        <SettingsDatasetView title="번호/섹션 인식" rows={result?.normalized.sections ?? []} search={search} preferredColumns={['순번', '번호', '제목', '시작블록', '종료블록', '내용미리보기']} />
+        <SettingsDatasetView title="번호/섹션 인식" rows={result?.normalized.sections ?? []} search={search} preferredColumns={['순번', '번호', '섹션분류', '분류근거', '제외여부', '제목', '시작블록', '종료블록', '내용미리보기']} />
       ) : null}
       {activeTab === '표 복원' ? (
         <SettingsDatasetView title="표 후보 복원" rows={result?.normalized.tables ?? []} search={search} preferredColumns={['순번', '유형', '행수', '열수', '헤더', '첫값행', '경고']} />
@@ -3339,10 +3227,38 @@ function OutputView({
   )
 }
 
+const tableColumnWidthCache = new Map<string, Record<string, number>>()
+
+function loadColumnWidthCache(key: string) {
+  const cached = tableColumnWidthCache.get(key)
+  if (cached) return cached
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return {}
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveColumnWidthCache(key: string, widths: Record<string, number>) {
+  tableColumnWidthCache.set(key, widths)
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(widths))
+    }
+  } catch {
+    // 일부 브라우저 검증 환경은 storage 접근을 막는다. 세션 캐시는 계속 유지한다.
+  }
+}
+
 function DataTable({
   columns,
   rows,
   emptyText,
+  tableId,
   onRowClick,
   editable = false,
   standardColumnMode = false,
@@ -3352,14 +3268,23 @@ function DataTable({
   columns: string[]
   rows: NoticeRow[]
   emptyText: string
+  tableId?: string
   onRowClick?: (row: NoticeRow) => void
   editable?: boolean
   standardColumnMode?: boolean
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
 }) {
+  const widthStorageKey = useMemo(
+    () => `lastgonggo.columnWidths.${tableId || columns.join('|')}`,
+    [columns, tableId],
+  )
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const [sortState, setSortState] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
+
+  useEffect(() => {
+    setColumnWidths(loadColumnWidthCache(widthStorageKey))
+  }, [widthStorageKey])
 
   const sortedRows = useMemo(() => {
     if (!sortState) return rows
@@ -3408,7 +3333,11 @@ function DataTable({
 
     const handleMove = (moveEvent: MouseEvent) => {
       const nextWidth = Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX))
-      setColumnWidths((prev) => ({ ...prev, [col]: nextWidth }))
+      setColumnWidths((prev) => {
+        const next = { ...prev, [col]: nextWidth }
+        saveColumnWidthCache(widthStorageKey, next)
+        return next
+      })
     }
 
     const stopResize = () => {
