@@ -695,6 +695,29 @@ textarea:focus {
   font-size: 11px;
 }
 
+.compact-section-head {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+
+.section-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.section-title-line h2,
+.section-title-line span {
+  display: inline;
+}
+
+.section-title-line span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .section-head select {
   width: 104px;
 }
@@ -914,6 +937,38 @@ tbody tr.selected-row td {
   border-color: #3b6ea8;
   box-shadow: 0 0 0 2px rgba(59, 110, 168, 0.16);
   outline: none;
+}
+
+.cell-select {
+  display: block;
+  width: 100%;
+  height: 28px;
+  min-width: 0;
+  color: #0f1f31;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font: inherit;
+}
+
+.cell-select:focus {
+  background: #ffffff;
+  border-color: #3b6ea8;
+  outline: none;
+}
+
+.cell-checkbox {
+  display: grid;
+  width: 100%;
+  min-height: 28px;
+  place-items: center;
+}
+
+.cell-checkbox input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #2f66a2;
 }
 
 .settings-save-status {

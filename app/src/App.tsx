@@ -1469,6 +1469,8 @@ function SettingsShell({
   const [activeMenu, setActiveMenu] = useState('dashboard')
   const [settingsSearch, setSettingsSearch] = useState('')
   const [settingsDark, setSettingsDark] = useState(false)
+  const dirtyRef = useRef<Record<string, { label: string; save: () => Promise<void>; reset: () => void }>>({})
+  const [, bumpDirtyVersion] = useState(0)
   const settingTabs = settings.settingTabs ?? []
   const categories = buildSettingCategories(settingTabs)
   const activeTab = settingTabs.find((tab) => valueToText(tab.id) === activeMenu) ?? settingTabs[0]
@@ -1483,6 +1485,48 @@ function SettingsShell({
     }
   }, [activeMenu, settingTabs])
 
+  function updateDirtyState(id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) {
+    if (!id) return
+    const hadDirty = Boolean(dirtyRef.current[id])
+    if (dirty) {
+      dirtyRef.current[id] = { label, save, reset }
+      if (!hadDirty) bumpDirtyVersion((value) => value + 1)
+      return
+    }
+    if (hadDirty) {
+      delete dirtyRef.current[id]
+      bumpDirtyVersion((value) => value + 1)
+    }
+  }
+
+  async function guardUnsavedChanges() {
+    const dirtyItems = Object.values(dirtyRef.current)
+    if (!dirtyItems.length) return true
+    const labels = dirtyItems.map((item) => item.label).join(', ')
+    if (window.confirm(`저장하지 않은 변경이 있습니다.\n\n${labels}\n\n저장하고 이동할까요?`)) {
+      for (const item of dirtyItems) await item.save()
+      dirtyRef.current = {}
+      bumpDirtyVersion((value) => value + 1)
+      return true
+    }
+    if (window.confirm('저장하지 않고 이동할까요? 변경사항은 되돌립니다.')) {
+      for (const item of dirtyItems) item.reset()
+      dirtyRef.current = {}
+      bumpDirtyVersion((value) => value + 1)
+      return true
+    }
+    return false
+  }
+
+  async function moveMenu(nextMenu: string) {
+    if (nextMenu === activeMenu) return
+    if (await guardUnsavedChanges()) setActiveMenu(nextMenu)
+  }
+
+  async function closeSettings() {
+    if (await guardUnsavedChanges()) onClose()
+  }
+
   return (
     <div className={`settings-shell ${settingsDark ? 'settings-shell-dark' : ''}`}>
       <aside className="settings-rail" aria-label="설정 주요 메뉴">
@@ -1493,7 +1537,7 @@ function SettingsShell({
             className={`rail-category ${category.title === activeCategory ? 'active' : ''}`}
             type="button"
             title={category.title}
-            onClick={() => setActiveMenu(category.firstId)}
+            onClick={() => void moveMenu(category.firstId)}
           >
             <SettingsRailIcon name={category.icon} />
           </button>
@@ -1509,7 +1553,7 @@ function SettingsShell({
           <div key={group.title} className="settings-group">
             <p>{group.title}</p>
             {group.items.map((item) => (
-              <button key={item.id} className={activeMenu === item.id ? 'active' : ''} type="button" onClick={() => setActiveMenu(item.id)}>
+              <button key={item.id} className={activeMenu === item.id ? 'active' : ''} type="button" onClick={() => void moveMenu(item.id)}>
                 {item.label}
                 {item.count !== null ? <span>{item.count.toLocaleString()}</span> : null}
               </button>
@@ -1532,7 +1576,7 @@ function SettingsShell({
           >
             <Moon size={16} />
           </button>
-          <button type="button" title="설정 닫기" onClick={onClose}>
+          <button type="button" title="설정 닫기" onClick={() => void closeSettings()}>
             <X size={16} />
           </button>
         </header>
@@ -1561,6 +1605,7 @@ function SettingsShell({
               activeTab={activeTab}
               onSaveSetting={onSaveSetting}
               onSaveStandardRules={onSaveStandardRules}
+              onDirtyChange={updateDirtyState}
             />
           )}
         </section>
@@ -1639,7 +1684,7 @@ function createChangelogRows(
   const tab = settingTabs.find((item) => valueToText(item.데이터키) === key)
   const now = new Date()
   const category = valueToText(tab?.대분류) || (key === 'standardColumns' ? '공고수집' : '설정')
-  const label = valueToText(tab?.라벨) || (key === 'standardColumns' ? 'api 컬럼형식' : key)
+  const label = valueToText(tab?.라벨) || (key === 'standardColumns' ? '공고분류컬럼 설정' : key)
   const actor = currentUserName(profileRows)
   const nextId = Math.max(0, ...currentRows.map((row) => Number(row.id) || 0)) + 1
   const nextRow: NoticeRow = {
@@ -1680,6 +1725,7 @@ function SettingsContent({
   activeTab,
   onSaveSetting,
   onSaveStandardRules,
+  onDirtyChange,
 }: {
   activeMenu: string
   search: string
@@ -1690,8 +1736,9 @@ function SettingsContent({
   activeTab?: NoticeRow
   onSaveSetting: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
   onSaveStandardRules: (rows: NoticeRow[]) => Promise<NoticeRow[]>
+  onDirtyChange: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
 }) {
-  const editableProps = (key: string) => ({ settingKey: key, onSaveSetting })
+  const editableProps = (key: string, label?: string) => ({ datasetId: key, settingKey: key, onSaveSetting, onDirtyChange, dirtyLabel: label ?? key })
   const tabId = valueToText(activeTab?.id)
   const dataKey = valueToText(activeTab?.데이터키)
   const screenType = valueToText(activeTab?.화면유형)
@@ -1711,7 +1758,18 @@ function SettingsContent({
     )
   }
   if (screenType === 'standard') {
-    return <SettingsDatasetView title={tabLabel} rows={rules as unknown as NoticeRow[]} search={search} preferredColumns={preferredColumnsForSetting('standardColumns')} onSaveRows={onSaveStandardRules} />
+    return (
+      <SettingsDatasetView
+        title={tabLabel}
+        rows={rules as unknown as NoticeRow[]}
+        search={search}
+        preferredColumns={preferredColumnsForSetting('standardColumns')}
+        datasetId="standardColumns"
+        dirtyLabel={tabLabel}
+        onSaveRows={onSaveStandardRules}
+        onDirtyChange={onDirtyChange}
+      />
+    )
   }
   if (screenType === 'jongmok') {
     return <JongmokMappingView rows={settings.jongmokMap ?? []} search={search} onSave={(rows) => onSaveSetting('jongmokMap', rows)} />
@@ -1723,7 +1781,7 @@ function SettingsContent({
         rows={settings[dataKey] ?? []}
         search={search}
         preferredColumns={preferredColumnsForSetting(dataKey)}
-        {...editableProps(dataKey)}
+        {...editableProps(dataKey, tabLabel)}
       />
     )
   }
@@ -1806,7 +1864,7 @@ function SettingsContent({
     return <SettingsDatasetView title="폐광지역진흥지구" rows={settings.regionMine ?? []} search={search} preferredColumns={['id', '광역', '시·군', '상세 구역']} {...editableProps('regionMine')} />
   }
   if (activeMenu === 'API 컬럼형식') {
-    return <SettingsDatasetView title="API 컬럼형식" rows={rules as unknown as NoticeRow[]} search={search} preferredColumns={['id', '항목', '표시형식', '처리방법', '우선순위', '참조방법', '참조메모', '선택목록', '공고관리 표시', '상세정보입력', '서버공고일치', '확정메모']} onSaveRows={onSaveStandardRules} />
+    return <SettingsDatasetView title="공고분류컬럼 설정" rows={rules as unknown as NoticeRow[]} search={search} preferredColumns={preferredColumnsForSetting('standardColumns')} datasetId="standardColumns" dirtyLabel="공고분류컬럼 설정" onSaveRows={onSaveStandardRules} onDirtyChange={onDirtyChange} />
   }
   if (activeMenu === '발주처 변경') {
     return <SettingsDatasetView title="적격발주처 변경" rows={settings.orgMap ?? []} search={search} preferredColumns={['id', '발주처 키워드', '매핑 대상']} {...editableProps('orgMap')} />
@@ -1868,7 +1926,7 @@ function preferredColumnsForSetting(key: string) {
     powerPlantRegion: ['id', '발전소명', '지역', '상세구역', '메모'],
     regionMine: ['id', '광역', '시·군', '상세 구역'],
     regionHint: ['id', '원문', '후보지역', '처리상태', '메모'],
-    standardColumns: ['id', '항목', '표시형식', '처리방법', '우선순위', '참조방법', '참조메모', '선택목록', '공고관리 표시', '상세정보입력', '서버공고일치', '확정메모'],
+    standardColumns: ['id', '항목', '표시형식', '처리방법', '우선순위', '참조방법', '참조메모', '선택목록', '공고관리 표시', '상세정보입력'],
     reviewQueue: ['id', '구분', '대상', '상태', '메모'],
     profileInfo: ['id', '항목', '값', '메모'],
     excludedItems: ['id', '종목', '사용여부', '메모'],
@@ -1948,6 +2006,9 @@ function SettingsDatasetView({
   rows,
   search,
   preferredColumns = [],
+  datasetId,
+  dirtyLabel,
+  onDirtyChange,
   settingKey,
   onSaveSetting,
   onSaveRows,
@@ -1956,6 +2017,9 @@ function SettingsDatasetView({
   rows: NoticeRow[]
   search: string
   preferredColumns?: string[]
+  datasetId?: string
+  dirtyLabel?: string
+  onDirtyChange?: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
   settingKey?: string
   onSaveSetting?: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
   onSaveRows?: (rows: NoticeRow[]) => Promise<NoticeRow[]>
@@ -1977,8 +2041,10 @@ function SettingsDatasetView({
 
   const sourceRows = editable ? draftRows : rows
   const filtered = filterSettingRows(sourceRows, search)
-  const columns = columnsForRows(filtered.length ? filtered : sourceRows, preferredColumns)
+  const baseColumns = columnsForRows(filtered.length ? filtered : sourceRows, preferredColumns)
+  const columns = datasetId === 'standardColumns' ? baseColumns.filter((col) => !STANDARD_COLUMNS_DEFAULT_HIDDEN.has(col)) : baseColumns
   const displayed = filtered.slice(0, 500).map((row) => ({ ...row, __settingsIndex: sourceRows.indexOf(row) }))
+  const isDirty = editable && JSON.stringify(draftRows.map(stripSettingsMeta)) !== JSON.stringify(rows.map(stripSettingsMeta))
 
   function changeCell(row: NoticeRow, col: string, value: string) {
     const index = Number(row.__settingsIndex)
@@ -2028,7 +2094,7 @@ function SettingsDatasetView({
     const uploadedRows = parseCsvUpload(text)
     setDraftRows(uploadedRows)
     setSelectedIndex(null)
-    setSaveStatus(`CSV 업로드: ${uploadedRows.length.toLocaleString()}행. 저장을 누르면 파일에 반영됩니다.`)
+    setSaveStatus(`가져오기: ${uploadedRows.length.toLocaleString()}행. 저장을 누르면 파일에 반영됩니다.`)
   }
 
   function resetRows() {
@@ -2037,21 +2103,27 @@ function SettingsDatasetView({
     setSaveStatus('원본으로 되돌림')
   }
 
+  useEffect(() => {
+    if (!datasetId || !onDirtyChange) return
+    onDirtyChange(datasetId, dirtyLabel ?? title, isDirty, saveRows, resetRows)
+  }, [datasetId, dirtyLabel, draftRows, isDirty, onDirtyChange, rows, title])
+
   return (
     <section className="table-section settings-table-section">
-      <div className="section-head">
-        <div>
+      <div className="section-head compact-section-head">
+        <div className="section-title-line">
           <h2>{title}</h2>
           <span>
-            전체 {sourceRows.length.toLocaleString()}건, 검색 {filtered.length.toLocaleString()}건, 화면 표시 {displayed.length.toLocaleString()}건
+            전체 {sourceRows.length.toLocaleString()}건 · 검색 {filtered.length.toLocaleString()}건 · 표시 {displayed.length.toLocaleString()}건
+            {isDirty ? ' · 저장 필요' : ''}
           </span>
         </div>
         {editable || sourceRows.length ? (
           <div className="section-actions">
-            <button type="button" onClick={downloadCsv}>CSV 다운</button>
+            <button type="button" onClick={downloadCsv}>내보내기</button>
             {editable ? (
               <>
-                <button type="button" onClick={() => fileInputRef.current?.click()}>CSV 업로드</button>
+                <button type="button" onClick={() => fileInputRef.current?.click()}>가져오기</button>
                 <button type="button" onClick={addRow}>행 추가</button>
                 <button type="button" onClick={deleteSelected} disabled={selectedIndex === null}>선택 삭제</button>
                 <button type="button" onClick={resetRows}>되돌리기</button>
@@ -2684,6 +2756,44 @@ const sortCollator = new Intl.Collator('ko-KR', { numeric: true, sensitivity: 'b
 const MIN_COLUMN_WIDTH = 12
 const MAX_COLUMN_WIDTH = 720
 
+const COLUMN_LABELS: Record<string, string> = {
+  선택목록: '컬럼입력목록',
+}
+
+const COLUMN_HELP: Record<string, string> = {
+  항목: '최종 공고분류 엑셀과 화면에서 사용하는 표준 컬럼명입니다.',
+  표시형식: '값을 날짜, 금액, 숫자, 텍스트처럼 어떤 형식으로 보여줄지 정합니다.',
+  처리방법: '계산, 수집, 둘다, 공란 중 하나입니다. 수집은 서버공고/파서맨 수집값, 계산은 참조방법 코드로 값을 만듭니다.',
+  우선순위: '같은 컬럼에 서버정보와 파서맨정보가 함께 있을 때 어떤 출처를 최종값으로 쓸지 정합니다.',
+  참조방법: '처리방법이 계산 또는 둘다일 때 사용하는 코드형 규칙입니다. 참조메모를 기준으로 작성합니다.',
+  참조메모: '참조방법 코드가 무엇을 계산하거나 조회하는지 사람이 이해할 수 있게 적어둡니다.',
+  선택목록: '컬럼 입력 시 사용할 목록입니다. 상세 화면과 표 편집 드롭다운/검증 기준으로 씁니다.',
+  '공고관리 표시': '공고관리 표에서 이 컬럼을 숨길지 조정하는 체크박스입니다.',
+  상세정보입력: '상세정보 입력 화면에서 이 컬럼을 숨길지 조정하는 체크박스입니다.',
+  서버공고일치: '서버공고 원본 컬럼과 표준 컬럼 비교 검증에 쓰던 메타입니다. 기본 운영 화면에서는 숨겨둡니다.',
+  확정메모: '컬럼 규칙 확정 과정에서 남긴 메모입니다. 기본 운영 화면에서는 숨겨둡니다.',
+}
+
+const CHECKBOX_COLUMNS = new Set(['공고관리 표시', '상세정보입력'])
+const STANDARD_COLUMNS_DEFAULT_HIDDEN = new Set(['서버공고일치', '확정메모'])
+const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
+  처리방법: ['', '계산', '수집', '둘다'],
+  우선순위: ['', '서버정보', '파서맨정보', '문서곡괭이', '계산', 'LLM'],
+}
+
+function displayColumnName(col: string) {
+  return COLUMN_LABELS[col] ?? col
+}
+
+function columnHelp(col: string) {
+  return COLUMN_HELP[col] ?? `${displayColumnName(col)} 기준으로 정렬합니다.`
+}
+
+function isCheckedValue(value: unknown) {
+  const text = valueToText(value).trim().toLowerCase()
+  return ['1', 'true', 't', 'y', 'yes', 'checked', '체크'].includes(text)
+}
+
 function RulesView({
   profiles,
   rules,
@@ -2963,8 +3073,8 @@ function DataTable({
                   style={columnStyle(col)}
                   aria-sort={activeSort === 'asc' ? 'ascending' : activeSort === 'desc' ? 'descending' : 'none'}
                 >
-                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={`${col} 정렬`}>
-                    <span className="th-label">{col}</span>
+                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={columnHelp(col)}>
+                    <span className="th-label">{displayColumnName(col)}</span>
                     <span className="sort-indicator" aria-hidden="true">
                       {activeSort === 'asc' ? '▲' : activeSort === 'desc' ? '▼' : ''}
                     </span>
@@ -2997,7 +3107,29 @@ function DataTable({
                   style={columnStyle(col)}
                   title={valueToText(row[col])}
                 >
-                    {editable ? (
+                    {editable && CHECKBOX_COLUMNS.has(col) ? (
+                      <label className="cell-checkbox" onClick={(event) => event.stopPropagation()} title={columnHelp(col)}>
+                        <input
+                          type="checkbox"
+                          checked={isCheckedValue(row[col])}
+                          onChange={(event) => onCellChange?.(row, col, event.target.checked ? '1' : '')}
+                        />
+                      </label>
+                    ) : editable && SELECT_COLUMN_OPTIONS[col] ? (
+                      <select
+                        className="cell-select"
+                        value={valueToText(row[col])}
+                        title={valueToText(row[col])}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => onCellChange?.(row, col, event.target.value)}
+                      >
+                        {Array.from(new Set([...SELECT_COLUMN_OPTIONS[col], valueToText(row[col])])).map((option) => (
+                          <option key={option} value={option}>
+                            {option || '(빈값)'}
+                          </option>
+                        ))}
+                      </select>
+                    ) : editable ? (
                       <textarea
                         className="cell-editor"
                         value={valueToText(row[col])}
