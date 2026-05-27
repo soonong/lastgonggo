@@ -1771,7 +1771,7 @@ function SettingsContent({
     )
   }
   if (screenType === 'guide') {
-    return <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} />
+    return <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} onSaveSetting={onSaveSetting} onDirtyChange={onDirtyChange} />
   }
   if (screenType === 'normalizer') {
     return <ParserNormalizationView search={search} />
@@ -1903,7 +1903,7 @@ function SettingsContent({
   }
   if (activeMenu === '조건판단형태 가이드') {
     return (
-      <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} />
+      <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} onSaveSetting={onSaveSetting} onDirtyChange={onDirtyChange} />
     )
   }
   if (activeMenu === '샘플 공고 테스트') {
@@ -2053,6 +2053,8 @@ function SettingsDatasetView({
   settingKey,
   onSaveSetting,
   onSaveRows,
+  selectColumnOptions = {},
+  columnHelpMap = {},
 }: {
   title: string
   rows: NoticeRow[]
@@ -2064,6 +2066,8 @@ function SettingsDatasetView({
   settingKey?: string
   onSaveSetting?: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
   onSaveRows?: (rows: NoticeRow[]) => Promise<NoticeRow[]>
+  selectColumnOptions?: Record<string, string[]>
+  columnHelpMap?: Record<string, string>
 }) {
   const editable = Boolean((settingKey && onSaveSetting) || onSaveRows)
   const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
@@ -2214,6 +2218,8 @@ function SettingsDatasetView({
         tableId={`settings:${datasetId ?? settingKey ?? title}`}
         editable={editable}
         standardColumnMode={datasetId === 'standardColumns'}
+        selectColumnOptions={selectColumnOptions}
+        columnHelpMap={columnHelpMap}
         onCellChange={changeCell}
         onRowClick={editable ? (row) => setSelectedIndex(Number(row.__settingsIndex)) : undefined}
         rowClassName={editable ? (row) => (Number(row.__settingsIndex) === selectedIndex ? 'selected-row' : '') : undefined}
@@ -2456,7 +2462,17 @@ function splitGuideItems(value: unknown) {
     .filter(Boolean)
 }
 
-function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: string }) {
+function ParserTypeGuideView({
+  rows,
+  search,
+  onSaveSetting,
+  onDirtyChange,
+}: {
+  rows: NoticeRow[]
+  search: string
+  onSaveSetting: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
+  onDirtyChange?: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
+}) {
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase()
     const base = rows.filter((row) => valueToText(row['조건판단형태']).trim())
@@ -2641,9 +2657,16 @@ function ParserTypeGuideView({ rows, search }: { rows: NoticeRow[]; search: stri
 
       <SettingsDatasetView
         title="조건판단형태 범위 표"
-        rows={visibleRows}
-        search=""
+        rows={rows}
+        search={search}
         preferredColumns={preferredColumnsForSetting('parserTypeGuide')}
+        datasetId="parserTypeGuide"
+        dirtyLabel="조건판단형태 가이드"
+        settingKey="parserTypeGuide"
+        onSaveSetting={onSaveSetting}
+        onDirtyChange={onDirtyChange}
+        selectColumnOptions={PARSER_TYPE_GUIDE_OPTIONS}
+        columnHelpMap={PARSER_TYPE_GUIDE_HELP}
       />
     </div>
   )
@@ -3100,6 +3123,37 @@ const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
   우선순위: ['', '서버정보', '문서곡괭이'],
 }
 
+const PARSER_TYPE_GUIDE_OPTIONS: Record<string, string[]> = {
+  출력: ['', '날짜', '정수 원', '전화번호', 'N%', '텍스트', '매칭 텍스트', '문단 텍스트', '고정값', '매칭 키워드 또는 별칭 라벨', '종목 배열', '지역 배열', '제어용', '정수 원 또는 표 값', '결과값 목록'],
+  정규화범위: ['', '원문줄', '문단', '표', '대섹션', '전체본문', '문단, 표', '문단, 대섹션', '대섹션, 문단', '대섹션, 전체본문'],
+  키워드매칭방식: ['', '키워드일치', '키워드포함', '키워드일치 우선, 키워드포함 허용', '키워드 앞뒤 와일드카드', '키워드포함, 조사 포함 허용', '키워드포함 + 마스터 교집합', '키워드포함 + 지역마스터 교집합', '키워드일치, 키워드포함, 별칭후보', '키워드일치, 키워드포함, 헤더/라벨 매칭', '키워드일치, 키워드포함, 키워드 앞뒤 와일드카드'],
+  우선섹션분류: ['', '입찰일정', '금액정보', '문의처', '공동계약', '입찰참가자격', '낙찰방법', '계약방식', '지역제한', '안전보건', '기타사항', '공동계약, 입찰참가자격', '공동계약, 낙찰방법', '금액정보, 입찰일정', '금액정보, 입찰참가자격, 문의처', '입찰참가자격, 낙찰방법, 공동계약', '공동계약, 입찰참가자격, 낙찰방법, 기타사항'],
+  fallback범위: ['', '없음', '같은 문단', '같은 대섹션', '같은 대섹션 -> 전체본문', '표 -> 같은 대섹션 -> 전체본문', '전체본문'],
+  제외검사범위: ['', '같은 문단', '같은 표', '같은 대섹션', '전체본문', '같은 문단 또는 같은 표', '같은 문단 또는 같은 대섹션', '매칭 구간 포함 같은 문단', '매칭 문단 또는 같은 대섹션'],
+  근거저장단위: ['', '매칭 원문줄', '매칭 문단', '매칭 문단 목록', '매칭 문단/표 셀', '문단 또는 대섹션', '표번호+행열', '종료점 위치'],
+  영향정책: ['', '공백 무시', '공백 무시|단어 경계', '공백 무시|단어 경계|exclude', '공백 무시|단어 경계|다중 블록', '공백 무시|단어 경계 강제 OFF', '정책 미적용', '정규화 매치|와일드카드|사전 필터'],
+  토글비고: ['', '이 타입은 코드 정책이 고정되어 개별 토글을 사용하지 않습니다.', '이 타입은 의도적 부분매칭이라 개별 정책 토글을 사용하지 않습니다.'],
+}
+
+const PARSER_TYPE_GUIDE_HELP: Record<string, string> = {
+  조건판단형태: '문서곡괭이 매처 타입 코드입니다. 예: 1_2는 키워드 다음 금액을 찾고, 6_1은 표에서 라벨-값을 찾습니다.',
+  이름: '운영자가 이해하기 쉬운 조건판단형태 이름입니다. 짧고 구분 가능하게 적습니다.',
+  용도: '이 타입을 어떤 컬럼/상황에 쓰는지 설명합니다.',
+  출력: '이 타입이 최종적으로 반환하는 값의 형태입니다.',
+  정규화범위: '문서 정규화 결과 중 어디를 우선 검색할지 정합니다. 예: 문단, 대섹션, 표.',
+  키워드매칭방식: '검색키워드를 인정하는 방식입니다. 명확한 값은 일치 우선, 흔들리는 표현은 포함/와일드카드를 씁니다.',
+  우선섹션분류: '섹션설정으로 분류된 공고문 섹션 중 먼저 볼 범위입니다. 비우면 특정 섹션으로 좁히지 않습니다.',
+  fallback범위: '우선 범위에서 못 찾았을 때 검색 범위를 어디까지 넓힐지 정합니다.',
+  제외검사범위: '검색키워드를 찾은 뒤 제외키워드를 비교할 원문 범위입니다.',
+  근거저장단위: '검수 화면에 저장하고 보여줄 원문 근거 단위입니다.',
+  판단로직: '문서곡괭이가 이 타입을 실행하는 순서입니다. 여러 단계는 | 로 구분합니다.',
+  영향정책: '공백 무시, 단어 경계, exclude 같은 매칭 정책 중 이 타입에 영향을 주는 항목입니다.',
+  예시본문: '이 조건판단형태를 검증할 수 있는 짧은 예시 본문입니다.',
+  결과예시: '예시본문에서 기대하는 추출 결과입니다.',
+  주의: '오탐, 누락, 제외키워드 필요성 등 운영자가 알아야 할 함정입니다.',
+  토글비고: '정책 토글을 쓸 수 없는 타입이거나 별도 주의가 있을 때 적습니다.',
+}
+
 function displayColumnName(col: string) {
   return COLUMN_LABELS[col] ?? col
 }
@@ -3318,6 +3372,8 @@ function DataTable({
   onRowClick,
   editable = false,
   standardColumnMode = false,
+  selectColumnOptions = {},
+  columnHelpMap = {},
   onCellChange,
   rowClassName,
 }: {
@@ -3328,6 +3384,8 @@ function DataTable({
   onRowClick?: (row: NoticeRow) => void
   editable?: boolean
   standardColumnMode?: boolean
+  selectColumnOptions?: Record<string, string[]>
+  columnHelpMap?: Record<string, string>
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
 }) {
@@ -3377,6 +3435,14 @@ function DataTable({
   function columnStyle(col: string) {
     const width = columnWidth(col)
     return { width, minWidth: width, maxWidth: width }
+  }
+
+  function helpForColumn(col: string) {
+    return columnHelpMap[col] ?? columnHelp(col)
+  }
+
+  function optionsForColumn(col: string) {
+    return selectColumnOptions[col] ?? (standardColumnMode ? SELECT_COLUMN_OPTIONS[col] : undefined)
   }
 
   function startColumnResize(event: ReactMouseEvent<HTMLSpanElement>, col: string) {
@@ -3433,7 +3499,7 @@ function DataTable({
                   style={columnStyle(col)}
                   aria-sort={activeSort === 'asc' ? 'ascending' : activeSort === 'desc' ? 'descending' : 'none'}
                 >
-                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={columnHelp(col)}>
+                  <button className="th-sort-button" type="button" onClick={() => toggleSort(col)} title={helpForColumn(col)}>
                     <span className="th-label">{standardColumnMode ? displayColumnName(col) : col}</span>
                     <span className="sort-indicator" aria-hidden="true">
                       {activeSort === 'asc' ? '▲' : activeSort === 'desc' ? '▼' : ''}
@@ -3468,14 +3534,14 @@ function DataTable({
                   title={valueToText(row[col])}
                 >
                     {editable && standardColumnMode && CHECKBOX_COLUMNS.has(col) ? (
-                      <label className="cell-checkbox" onClick={(event) => event.stopPropagation()} title={columnHelp(col)}>
+                      <label className="cell-checkbox" onClick={(event) => event.stopPropagation()} title={helpForColumn(col)}>
                         <input
                           type="checkbox"
                           checked={isCheckedValue(row[col])}
                           onChange={(event) => onCellChange?.(row, col, event.target.checked ? '1' : '')}
                         />
                       </label>
-                    ) : editable && standardColumnMode && SELECT_COLUMN_OPTIONS[col] ? (
+                    ) : editable && optionsForColumn(col) ? (
                       <select
                         className="cell-select"
                         value={valueToText(row[col])}
@@ -3483,7 +3549,7 @@ function DataTable({
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => onCellChange?.(row, col, event.target.value)}
                       >
-                        {SELECT_COLUMN_OPTIONS[col].map((option) => (
+                        {optionsForColumn(col)!.map((option) => (
                           <option key={option} value={option}>
                             {option || '(빈값)'}
                           </option>
