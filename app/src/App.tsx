@@ -2700,22 +2700,22 @@ function ParserNormalizationView({ search }: { search: string }) {
         <SettingsDatasetView title="공고문 정규화 요약" rows={summaryRows} search={search} preferredColumns={['항목', '값']} />
       ) : null}
       {activeTab === '번호/섹션' ? (
-        <SettingsDatasetView title="번호/섹션 인식" rows={result?.normalized.sections ?? []} search={search} preferredColumns={['순번', '대섹션번호', '대섹션제목', '번호', '계층', '섹션분류', '분류근거', '제외여부', '제목', '시작블록', '종료블록', '내용미리보기']} />
+        <SettingsDatasetView title="번호/섹션 인식" rows={hideDisplayColumns(result?.normalized.sections ?? [], ['순번'])} search={search} preferredColumns={['대섹션번호', '대섹션제목', '번호', '계층', '섹션분류', '분류근거', '제외여부', '제목', '시작블록', '종료블록', '내용미리보기']} />
       ) : null}
       {activeTab === '표 복원' ? (
-        <SettingsDatasetView title="표 후보 복원" rows={result?.normalized.tables ?? []} search={search} preferredColumns={['순번', '유형', '행수', '열수', '헤더', '첫값행', '경고']} />
+        <SettingsDatasetView title="표 후보 복원" rows={hideDisplayColumns(result?.normalized.tables ?? [], ['순번'])} search={search} preferredColumns={['유형', '행수', '열수', '헤더', '첫값행', '경고']} />
       ) : null}
       {activeTab === '문단' ? (
-        <SettingsDatasetView title="정규화 문단" rows={result?.normalized.hardBlocks ?? softRows} search={search} preferredColumns={['순번', '유형', '번호', '제목', '원문', '길이']} />
+        <SettingsDatasetView title="정규화 문단" rows={hideDisplayColumns(result?.normalized.hardBlocks ?? softRows, ['순번'])} search={search} preferredColumns={['유형', '번호', '계층', '제목', '원문', '길이']} />
       ) : null}
       {activeTab === '원문줄' ? (
-        <SettingsDatasetView title="원문 줄" rows={rawLineRows} search={search} preferredColumns={['순번', '원문']} />
+        <SettingsDatasetView title="원문 줄" rows={hideDisplayColumns(rawLineRows, ['순번'])} search={search} preferredColumns={['원문']} />
       ) : null}
       {activeTab === '파싱 결과' ? (
         <SettingsDatasetView title="문서곡괭이 파싱 결과" rows={fieldRows} search={search} preferredColumns={['컬럼', '값', '근거수']} />
       ) : null}
       {activeTab === '근거' ? (
-        <SettingsDatasetView title="문서곡괭이 파싱 근거" rows={matchRows} search={search} preferredColumns={['순번', '컬럼', '값', '조건판단형태', 'rule_id', '키워드', '근거']} />
+        <SettingsDatasetView title="문서곡괭이 파싱 근거" rows={hideDisplayColumns(matchRows, ['순번'])} search={search} preferredColumns={['컬럼', '값', '조건판단형태', 'rule_id', '키워드', '근거']} />
       ) : null}
     </div>
   )
@@ -2978,6 +2978,18 @@ function filterSettingRows(rows: NoticeRow[], search: string) {
   const needle = search.trim().toLowerCase()
   if (!needle) return rows
   return rows.filter((row) => Object.values(row).some((value) => valueToText(value).toLowerCase().includes(needle)))
+}
+
+function hideDisplayColumns(rows: NoticeRow[], hiddenColumns: string[]) {
+  if (!hiddenColumns.length) return rows
+  const hidden = new Set(hiddenColumns)
+  return rows.map((row) => {
+    const next: NoticeRow = {}
+    for (const [key, value] of Object.entries(row)) {
+      if (!hidden.has(key)) next[key] = value
+    }
+    return next
+  })
 }
 
 function columnsForRows(rows: NoticeRow[], preferredColumns: string[]) {
