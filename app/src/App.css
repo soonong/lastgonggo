@@ -796,9 +796,9 @@ th {
 
 .cell-text {
   display: -webkit-box;
-  max-height: 32px;
+  max-height: 40px;
   overflow: hidden;
-  line-height: 16px;
+  line-height: 19px;
   overflow-wrap: anywhere;
   white-space: normal;
   -webkit-box-orient: vertical;
@@ -918,8 +918,8 @@ tbody tr.selected-row td {
   display: block;
   width: 100%;
   min-width: 0;
-  height: 34px;
-  padding: 3px 4px;
+  height: 42px;
+  padding: 4px 4px;
   resize: none;
   overflow: hidden;
   color: #0f1f31;
@@ -927,7 +927,7 @@ tbody tr.selected-row td {
   border: 1px solid transparent;
   border-radius: 2px;
   font: inherit;
-  line-height: 16px;
+  line-height: 18px;
   overflow-wrap: anywhere;
   white-space: normal;
 }

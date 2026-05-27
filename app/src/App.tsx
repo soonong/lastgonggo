@@ -2066,7 +2066,11 @@ function SettingsDatasetView({
   const sourceRows = editable ? draftRows : rows
   const filtered = filterSettingRows(sourceRows, search)
   const baseColumns = columnsForRows(filtered.length ? filtered : sourceRows, preferredColumns)
-  const columns = datasetId === 'standardColumns' ? baseColumns.filter((col) => !STANDARD_COLUMNS_DEFAULT_HIDDEN.has(col)) : baseColumns
+  const columns = baseColumns.filter((col) => {
+    if (SETTINGS_DEFAULT_HIDDEN_COLUMNS.has(col)) return false
+    if (datasetId === 'standardColumns' && STANDARD_COLUMNS_DEFAULT_HIDDEN.has(col)) return false
+    return true
+  })
   const effectivePageSize = pageSize === 'all' ? Math.max(filtered.length, 1) : pageSize
   const totalPages = Math.max(1, Math.ceil(filtered.length / effectivePageSize))
   const safePage = Math.min(page, totalPages)
@@ -2735,6 +2739,7 @@ const COLUMN_HELP: Record<string, string> = {
 
 const CHECKBOX_COLUMNS = new Set(['공고관리 표시', '상세정보입력'])
 const STANDARD_COLUMNS_DEFAULT_HIDDEN = new Set(['서버공고일치', '확정메모'])
+const SETTINGS_DEFAULT_HIDDEN_COLUMNS = new Set(['id', 'ID'])
 const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
   처리방법: ['', '계산', '수집', '둘다'],
   우선순위: ['', '서버정보', '문서곡괭이'],
