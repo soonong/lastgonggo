@@ -1,0 +1,4 @@
+id,엔드포인트명,용도,URL,사용여부,메모
+1,서버공고,공고 원본 수집,https://bidding2.kr/api2/module/dingpago/bidDataOrigin_get.php,1,A1
+2,파싱용공고문,공고 본문 HTML,https://bidding2.kr/api2/module/consortiumAPI/bidHwp_get.php,1,A3
+3,적격심사세부기준,적격심사 계산기,https://file.bidding2.kr/api/calculator/qualification.php,1,A4

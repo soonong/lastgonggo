@@ -1,0 +1,23 @@
+id,대분류,아이콘,소분류,라벨,데이터키,화면유형,설명,순서
+dashboard,대쉬보드,LayoutDashboard,대쉬보드,대쉬보드,,summary,설정 데이터와 처리 상태를 확인합니다.,1
+ingestion.api,공고수집,CloudDownload,공고수집,서버공고 api,apiConfig,table,A1 서버공고 API 연결 기준을 관리합니다.,2
+ingestion.columns,공고수집,CloudDownload,공고수집,api 컬럼형식,standardColumns,standard,서버공고 컬럼과 표준 컬럼 룰을 맞춥니다.,3
+classify.deleteKeywords,분류규칙,Workflow,분류규칙,삭제키워드,deleteKeywords,table,전처리 대상에서 제외할 키워드를 관리합니다.,4
+classify.bracket,분류규칙,Workflow,분류규칙,공사명 대괄호정리,bracketRules,table,공사명 대괄호 키워드 변경 규칙을 관리합니다.,5
+classify.orgMap,분류규칙,Workflow,분류규칙,적격발주처변경,orgMap,table,발주처 원문을 적격발주처 기준명으로 바꾸는 순차 매핑표입니다.,6
+classify.secondaryCriteria,분류규칙,Workflow,분류규칙,적격심사기준변경,secondaryCriteria,table,적격심사기준 2차 매핑표를 관리합니다.,7
+check.keywords,공고체크 키워드,Tags,공고체크 키워드,공고체크 키워드,keywordRules,table,공고 체크 키워드 기준을 관리합니다.,8
+master.specialRecords,마스터데이터,Database,특수실적,특수실적,specialRecords,table,종목별 특수실적 결과값과 검색키워드를 관리합니다.,9
+master.specialCommon,마스터데이터,Database,특수실적,특수실적_공통,specialCommon,table,사업자 조건 성격의 공통 특수실적을 관리합니다.,10
+master.noticeTags,마스터데이터,Database,특수실적,공고확인,noticeTags,table,공고확인 결과값과 검색키워드를 관리합니다.,11
+master.evaluationCriteria,마스터데이터,Database,적격심사평가기준,적격심사평가기준,evaluationCriteria,table,적격심사 1차 기준표를 관리합니다.,12
+master.jongmokMap,마스터데이터,Database,종목매핑,종목매핑,jongmokMap,jongmok,종목 매핑과 상호진출 상대종목을 관리합니다.,13
+master.agencyCode,마스터데이터,Database,발주처코드,발주처코드,agencyCode,table,발주처코드와 상위코드를 관리합니다.,14
+master.regionCode,마스터데이터,Database,지역,지역코드,regionDb,table,행정지역 전처리 매핑을 관리합니다.,15
+master.kepcoOffice,마스터데이터,Database,지역,한전 배전사업소,kepcoOffice,table,한전 배전사업소와 인접 사업소를 관리합니다.,16
+master.transmissionOffice,마스터데이터,Database,지역,한전 송전사업소,transmissionOffice,table,한전 송전사업소를 관리합니다.,17
+master.powerPlantRegion,마스터데이터,Database,지역,발전소지역,powerPlantRegion,table,발전소 특수지역을 관리합니다.,18
+master.regionMine,마스터데이터,Database,지역,폐광지역진흥지구,regionMine,table,폐광지역진흥지구를 관리합니다.,19
+review.parser,검수,ClipboardCheck,검수,파서맨 검증,parserRules,parser,파서맨 룰 편집과 조건판단형태 가이드를 확인합니다.,20
+profile.settings,내설정,UserRound,내설정,내설정,profileInfo,table,사용자 설정을 관리합니다.,21
+changelog,변경로그,History,변경로그,변경로그,changelog,table,설정 변경 이력을 확인합니다.,22
