@@ -1,4 +1,4 @@
-import type { ApiEnvelope, NoticeRow, ParserResult, ServerColumnProfile, StandardColumnRule } from './types'
+import type { ApiEnvelope, NoticeRow, ParserNormalizationResult, ParserResult, ServerColumnProfile, StandardColumnRule } from './types'
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
@@ -70,6 +70,10 @@ export async function fetchA1ServerNotices(query: string) {
 
 export async function fetchA3Parser(gongsanum: string) {
   return getJson<ParserResult>(`/api/parser/a3?gongsanum=${encodeURIComponent(gongsanum)}`)
+}
+
+export async function fetchA3Normalization(gongsanum: string) {
+  return getJson<ParserNormalizationResult>(`/api/parser/normalize?gongsanum=${encodeURIComponent(gongsanum)}`)
 }
 
 export async function fetchBidFiles(gongsanum: string) {

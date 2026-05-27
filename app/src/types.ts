@@ -55,3 +55,25 @@ export type ParserResult = {
   html?: string
   textPreview?: string
 }
+
+export type ParserNormalizationResult = {
+  공고번호: string
+  htmlLength: number
+  textLength: number
+  normalized: {
+    rawLines: string[]
+    softBlocks: string[]
+    hardBlocks: NoticeRow[]
+    sections: NoticeRow[]
+    tables: NoticeRow[]
+    imageCount: number
+    warnings: string[]
+    normalizedText: string
+  }
+  parserSummary: {
+    fields: Record<string, string>
+    matches?: ParserResult['matches']
+    fieldCount: number
+    matchCount: number
+  }
+}

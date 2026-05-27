@@ -37,6 +37,7 @@ const settingFiles = {
   specialRecords: '특수실적.csv',
   specialCommon: '특수실적_공통.csv',
   jongmokMap: '종목_매핑.csv',
+  jongmokBundleRules: '종목묶기규칙.csv',
   agencyCode: '발주처코드.csv',
   regionDb: '지역디비.csv',
   wideRegion: '광역시도.csv',
@@ -266,6 +267,38 @@ async function parseA3Notice(reqUrl, res) {
   sendJson(res, 200, parseNoticeHtml(body, gongsanum))
 }
 
+async function normalizeA3Notice(reqUrl, res) {
+  const gongsanum = reqUrl.searchParams.get('gongsanum') || reqUrl.searchParams.get('공고번호')
+  const moduleKey = process.env.BID_MODULE_KEY
+  if (!moduleKey) {
+    sendJson(res, 400, {
+      error: 'missing_module_key',
+      message: 'BID_MODULE_KEY가 없습니다. A3 파싱용공고문을 호출할 수 없습니다.',
+    })
+    return
+  }
+  if (!gongsanum) {
+    sendJson(res, 400, { error: 'missing_gongsanum', message: 'gongsanum 또는 공고번호가 필요합니다.' })
+    return
+  }
+
+  const body = await fetchA3Html(gongsanum, moduleKey)
+  const normalized = normalizeNoticeDocument(body)
+  const parsed = parseNoticeHtml(body, gongsanum)
+  sendJson(res, 200, {
+    공고번호: gongsanum,
+    htmlLength: body.length,
+    textLength: normalized.normalizedText.length,
+    normalized,
+    parserSummary: {
+      fields: parsed.fields,
+      matches: parsed.matches,
+      fieldCount: Object.keys(parsed.fields ?? {}).length,
+      matchCount: parsed.matches?.length ?? 0,
+    },
+  })
+}
+
 async function fetchA3Html(gongsanum, moduleKey) {
   const target = new URL('https://bidding2.kr/api2/module/consortiumAPI/bidHwp_get.php')
   target.searchParams.set('gongsanum', gongsanum)
@@ -458,6 +491,156 @@ function parseNoticeHtml(html, gongsanum) {
   }
 }
 
+function normalizeNoticeDocument(html) {
+  const imageCount = (String(html || '').match(/<img\b/gi) || []).length
+  const source = decodeHtmlEntities(
+    String(html || '')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<\/(tr|p|div|li|h[1-6])\s*>/gi, '\n')
+      .replace(/<(br)\b[^>]*>/gi, '\n')
+      .replace(/<\/(td|th)\s*>/gi, ' | ')
+      .replace(/<[^>]+>/g, ' '),
+  )
+  const rawLines = source
+    .split(/\r?\n/)
+    .map((line) => normalizeLine(line))
+    .filter(Boolean)
+    .filter((line) => !/^\.(hwpBody|contents|Section)/i.test(line) && !/^@page\b/i.test(line))
+  if (!rawLines.length && imageCount) {
+    rawLines.push(`이미지형 공고문: 텍스트 추출 불가, 이미지 ${imageCount}개`)
+  }
+  const softBlocks = mergeSoftWrappedLines(rawLines)
+  const hardBlocks = softBlocks.map((text, index) => {
+    const numbering = detectNumbering(text)
+    return {
+      순번: index + 1,
+      유형: classifyBlock(text, numbering),
+      번호: numbering?.번호 ?? '',
+      제목: numbering?.제목 ?? '',
+      원문: text,
+      길이: text.length,
+    }
+  })
+  const sections = buildSections(hardBlocks)
+  const tables = detectTables(rawLines)
+  return {
+    rawLines,
+    softBlocks,
+    hardBlocks,
+    sections,
+    tables,
+    imageCount,
+    warnings: !rawLines.length || rawLines[0]?.startsWith('이미지형 공고문') ? ['본문 텍스트 없음: 이미지 OCR 또는 사람 확인 필요'] : [],
+    normalizedText: softBlocks.join('\n'),
+  }
+}
+
+function normalizeLine(line) {
+  return String(line || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s+\|/g, ' |')
+    .replace(/\|\s+/g, '| ')
+    .trim()
+}
+
+function decodeHtmlEntities(text) {
+  return String(text || '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+}
+
+function mergeSoftWrappedLines(lines) {
+  const blocks = []
+  for (const line of lines) {
+    const previous = blocks[blocks.length - 1] || ''
+    const startsNew = isHardStart(line)
+    const previousEnds = /[.。:：;；)]$/.test(previous) || previous.endsWith('다') || previous.includes('|')
+    if (!previous || startsNew || previousEnds || line.includes('|')) {
+      blocks.push(line)
+    } else {
+      blocks[blocks.length - 1] = `${previous} ${line}`.replace(/\s+/g, ' ').trim()
+    }
+  }
+  return blocks
+}
+
+function isHardStart(line) {
+  return /^(\d+[\).\-\s]|[가-힣]\.|[가-힣]\)|[①-⑳]|[㉠-㉭]|제\s*\d+\s*조|\[[^\]]+\])/.test(line)
+}
+
+function detectNumbering(text) {
+  const match = String(text || '').match(/^((?:\d+(?:[.)-]|\s+))|(?:[가-힣][.)])|(?:[①-⑳])|(?:[㉠-㉭])|(?:제\s*\d+\s*조))\s*(.*)$/)
+  if (!match) return null
+  return { 번호: match[1].trim(), 제목: (match[2] || '').slice(0, 80).trim() }
+}
+
+function classifyBlock(text, numbering) {
+  if (String(text).includes('|')) return '표후보'
+  if (numbering) return '번호문단'
+  if (/^(붙임|첨부|별첨|별표|서식)\b/.test(text)) return '첨부/붙임'
+  if (text.length <= 30 && /[:：]$/.test(text)) return '제목'
+  return '문단'
+}
+
+function buildSections(blocks) {
+  const sections = []
+  let current = null
+  for (const block of blocks) {
+    if (block.번호 || block.유형 === '제목') {
+      if (current) sections.push(current)
+      current = {
+        순번: sections.length + 1,
+        번호: block.번호,
+        제목: block.제목 || block.원문.slice(0, 80),
+        시작블록: block.순번,
+        종료블록: block.순번,
+        내용미리보기: block.원문,
+      }
+      continue
+    }
+    if (current) {
+      current.종료블록 = block.순번
+      current.내용미리보기 = `${current.내용미리보기} ${block.원문}`.slice(0, 260)
+    }
+  }
+  if (current) sections.push(current)
+  return sections
+}
+
+function detectTables(lines) {
+  const tables = []
+  let current = []
+  const flush = () => {
+    if (current.length >= 2) {
+      const rows = current.map((line) => line.split('|').map((cell) => cell.trim()).filter(Boolean))
+      const widths = rows.map((row) => row.length)
+      tables.push({
+        순번: tables.length + 1,
+        유형: Math.max(...widths) >= 3 ? '가로형/복합형 후보' : '세로형 후보',
+        행수: rows.length,
+        열수: Math.max(...widths),
+        헤더: rows[0]?.join(' / ') ?? '',
+        첫값행: rows[1]?.join(' / ') ?? '',
+        경고: new Set(widths).size > 1 ? '행별 열 수 다름' : '',
+      })
+    }
+    current = []
+  }
+  for (const line of lines) {
+    if (line.includes('|')) current.push(line)
+    else flush()
+  }
+  flush()
+  return tables
+}
+
 function readParserRuleRows() {
   try {
     return readCsv(path.join(paths.settingsDir, settingFiles.parserRules))
@@ -469,24 +652,11 @@ function readParserRuleRows() {
 }
 
 function normalizeNoticeHtml(html) {
-  const blockText = String(html || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<(br|\/p|\/div|\/tr|\/td|\/th|li|\/li|h[1-6]|\/h[1-6])\b[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-  const lines = blockText
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\s+/g, ' ').trim())
-    .filter(Boolean)
+  const document = normalizeNoticeDocument(html)
+  const lines = document.softBlocks
   return {
     text: lines.join(' ').replace(/\s+/g, ' ').trim(),
-    blocks: lines.length ? lines : [blockText.replace(/\s+/g, ' ').trim()].filter(Boolean),
+    blocks: lines,
   }
 }
 
@@ -513,22 +683,32 @@ function addParserField(fields, evidence, matches, match) {
 function applyEditableParserRules(text, blocks, fields, evidence, matches, rules) {
   for (const rule of rules) {
     const column = String(rule['대상컬럼'] || rule['항목'] || '').trim()
-    const type = String(rule['조건판단형태'] || rule.type || '').trim()
-    if (!column || !type) continue
-    if (type === '7_1') continue
+    const types = splitRuleTypes(rule['조건판단형태'] || rule.type || '')
+    if (!column || !types.length) continue
 
-    const parsed = extractByParserRule(text, blocks, rule, type)
-    if (!parsed || !parsed.value) continue
-    addParserField(fields, evidence, matches, {
-      column,
-      value: parsed.value,
-      type,
-      settingTable: '문서곡괭이_룰',
-      ruleId: rule.id || column,
-      matchedKeyword: parsed.matchedKeyword,
-      sourceText: parsed.sourceText,
-    })
+    for (const type of types) {
+      if (type === '7_1') continue
+      const parsed = extractByParserRule(text, blocks, rule, type)
+      if (!parsed || !parsed.value) continue
+      addParserField(fields, evidence, matches, {
+        column,
+        value: parsed.value,
+        type,
+        settingTable: '문서곡괭이_룰',
+        ruleId: rule.id || column,
+        matchedKeyword: parsed.matchedKeyword,
+        sourceText: parsed.sourceText,
+      })
+      break
+    }
   }
+}
+
+function splitRuleTypes(value) {
+  return String(value || '')
+    .split(/[,;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function extractByParserRule(text, blocks, rule, type) {
@@ -553,7 +733,7 @@ function extractByParserRule(text, blocks, rule, type) {
     return { value: fixedValue || '1', matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText }
   }
   if (type === '3_2') {
-    return { value: fixedValue || aliasValue(hit.matchedKeyword) || hit.matchedKeyword, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText }
+    return { value: fixedValue || hit.aliasLabel || aliasValue(hit.matchedKeyword) || hit.matchedKeyword, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText }
   }
   if (type === '2_2') {
     return { value: hit.matchedText, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText }
@@ -680,6 +860,15 @@ function splitRuleKeywords(value) {
 }
 
 function findKeywordHit(text, blocks, keyword, gap = 15) {
+  const alias = parseAliasKeyword(keyword)
+  if (alias) {
+    for (const candidate of alias.candidates) {
+      const hit = findKeywordHit(text, blocks, candidate, gap)
+      if (hit) return { ...hit, aliasLabel: alias.label }
+    }
+    return null
+  }
+
   const regex = keywordToRegex(keyword, gap)
   for (const block of blocks) {
     const match = block.match(regex)
@@ -688,6 +877,7 @@ function findKeywordHit(text, blocks, keyword, gap = 15) {
         index: text.indexOf(block),
         sourceText: block,
         matchedText: match[0],
+        aliasLabel: '',
       }
     }
   }
@@ -697,6 +887,16 @@ function findKeywordHit(text, blocks, keyword, gap = 15) {
     index: match.index ?? 0,
     sourceText: sourceAround(text, match.index ?? 0, 360),
     matchedText: match[0],
+    aliasLabel: '',
+  }
+}
+
+function parseAliasKeyword(keyword) {
+  const match = String(keyword || '').trim().match(/^\(([^:]+):(.+)\)$/)
+  if (!match) return null
+  return {
+    label: match[1].trim(),
+    candidates: match[2].split('/').map((item) => item.trim()).filter(Boolean),
   }
 }
 
@@ -870,6 +1070,11 @@ const server = http.createServer(async (req, res) => {
 
     if (reqUrl.pathname === '/api/parser/a3') {
       await parseA3Notice(reqUrl, res)
+      return
+    }
+
+    if (reqUrl.pathname === '/api/parser/normalize') {
+      await normalizeA3Notice(reqUrl, res)
       return
     }
 
