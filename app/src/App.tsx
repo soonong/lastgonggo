@@ -2054,6 +2054,7 @@ function SettingsDatasetView({
   onSaveSetting,
   onSaveRows,
   selectColumnOptions = {},
+  multiSelectColumnOptions = {},
   columnHelpMap = {},
 }: {
   title: string
@@ -2067,6 +2068,7 @@ function SettingsDatasetView({
   onSaveSetting?: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
   onSaveRows?: (rows: NoticeRow[]) => Promise<NoticeRow[]>
   selectColumnOptions?: Record<string, string[]>
+  multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
 }) {
   const editable = Boolean((settingKey && onSaveSetting) || onSaveRows)
@@ -2219,6 +2221,7 @@ function SettingsDatasetView({
         editable={editable}
         standardColumnMode={datasetId === 'standardColumns'}
         selectColumnOptions={selectColumnOptions}
+        multiSelectColumnOptions={multiSelectColumnOptions}
         columnHelpMap={columnHelpMap}
         onCellChange={changeCell}
         onRowClick={editable ? (row) => setSelectedIndex(Number(row.__settingsIndex)) : undefined}
@@ -2666,6 +2669,7 @@ function ParserTypeGuideView({
         onSaveSetting={onSaveSetting}
         onDirtyChange={onDirtyChange}
         selectColumnOptions={PARSER_TYPE_GUIDE_OPTIONS}
+        multiSelectColumnOptions={PARSER_TYPE_GUIDE_MULTI_OPTIONS}
         columnHelpMap={PARSER_TYPE_GUIDE_HELP}
       />
     </div>
@@ -3126,13 +3130,16 @@ const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
 const PARSER_TYPE_GUIDE_OPTIONS: Record<string, string[]> = {
   출력: ['', '날짜', '정수 원', '전화번호', 'N%', '텍스트', '매칭 텍스트', '문단 텍스트', '고정값', '매칭 키워드 또는 별칭 라벨', '종목 배열', '지역 배열', '제어용', '정수 원 또는 표 값', '결과값 목록'],
   정규화범위: ['', '원문줄', '문단', '표', '대섹션', '전체본문', '문단, 표', '문단, 대섹션', '대섹션, 문단', '대섹션, 전체본문'],
-  키워드매칭방식: ['', '키워드일치', '키워드포함', '키워드일치 우선, 키워드포함 허용', '키워드 앞뒤 와일드카드', '키워드포함, 조사 포함 허용', '키워드포함 + 마스터 교집합', '키워드포함 + 지역마스터 교집합', '키워드일치, 키워드포함, 별칭후보', '키워드일치, 키워드포함, 헤더/라벨 매칭', '키워드일치, 키워드포함, 키워드 앞뒤 와일드카드'],
-  우선섹션분류: ['', '입찰일정', '금액정보', '문의처', '공동계약', '입찰참가자격', '낙찰방법', '계약방식', '지역제한', '안전보건', '기타사항', '공동계약, 입찰참가자격', '공동계약, 낙찰방법', '금액정보, 입찰일정', '금액정보, 입찰참가자격, 문의처', '입찰참가자격, 낙찰방법, 공동계약', '공동계약, 입찰참가자격, 낙찰방법, 기타사항'],
   fallback범위: ['', '없음', '같은 문단', '같은 대섹션', '같은 대섹션 -> 전체본문', '표 -> 같은 대섹션 -> 전체본문', '전체본문'],
   제외검사범위: ['', '같은 문단', '같은 표', '같은 대섹션', '전체본문', '같은 문단 또는 같은 표', '같은 문단 또는 같은 대섹션', '매칭 구간 포함 같은 문단', '매칭 문단 또는 같은 대섹션'],
   근거저장단위: ['', '매칭 원문줄', '매칭 문단', '매칭 문단 목록', '매칭 문단/표 셀', '문단 또는 대섹션', '표번호+행열', '종료점 위치'],
-  영향정책: ['', '공백 무시', '공백 무시|단어 경계', '공백 무시|단어 경계|exclude', '공백 무시|단어 경계|다중 블록', '공백 무시|단어 경계 강제 OFF', '정책 미적용', '정규화 매치|와일드카드|사전 필터'],
   토글비고: ['', '이 타입은 코드 정책이 고정되어 개별 토글을 사용하지 않습니다.', '이 타입은 의도적 부분매칭이라 개별 정책 토글을 사용하지 않습니다.'],
+}
+
+const PARSER_TYPE_GUIDE_MULTI_OPTIONS: Record<string, string[]> = {
+  키워드매칭방식: ['키워드일치', '키워드포함', '키워드 앞뒤 와일드카드', '조사 포함 허용', '별칭후보', '헤더·라벨 매칭', '마스터 교집합', '지역마스터 교집합'],
+  우선섹션분류: ['입찰일정', '금액정보', '문의처', '공동계약', '입찰참가자격', '낙찰방법', '계약방식', '지역제한', '안전보건', '기타사항'],
+  영향정책: ['공백 무시', '단어 경계', '단어 경계 강제 OFF', 'exclude', '다중 블록', '정책 미적용', '정규화 매치', '와일드카드', '사전 필터'],
 }
 
 const PARSER_TYPE_GUIDE_HELP: Record<string, string> = {
@@ -3373,6 +3380,7 @@ function DataTable({
   editable = false,
   standardColumnMode = false,
   selectColumnOptions = {},
+  multiSelectColumnOptions = {},
   columnHelpMap = {},
   onCellChange,
   rowClassName,
@@ -3385,6 +3393,7 @@ function DataTable({
   editable?: boolean
   standardColumnMode?: boolean
   selectColumnOptions?: Record<string, string[]>
+  multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
@@ -3395,6 +3404,7 @@ function DataTable({
   )
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const [sortState, setSortState] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
+  const [openMultiCell, setOpenMultiCell] = useState<string | null>(null)
 
   useEffect(() => {
     setColumnWidths(loadColumnWidthCache(widthStorageKey))
@@ -3443,6 +3453,24 @@ function DataTable({
 
   function optionsForColumn(col: string) {
     return selectColumnOptions[col] ?? (standardColumnMode ? SELECT_COLUMN_OPTIONS[col] : undefined)
+  }
+
+  function multiOptionsForColumn(col: string) {
+    return multiSelectColumnOptions[col]
+  }
+
+  function multiValueParts(value: unknown) {
+    return valueToText(value)
+      .split(/[\/|,]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }
+
+  function toggleMultiValue(row: NoticeRow, col: string, option: string) {
+    const current = multiValueParts(row[col])
+    const exists = current.includes(option)
+    const next = exists ? current.filter((item) => item !== option) : [...current, option]
+    onCellChange?.(row, col, next.join('/'))
   }
 
   function startColumnResize(event: ReactMouseEvent<HTMLSpanElement>, col: string) {
@@ -3522,7 +3550,11 @@ function DataTable({
                 className={[onRowClick ? 'clickable-row' : '', rowClassName?.(row) ?? ''].join(' ')}
                 onClick={() => onRowClick?.(row)}
               >
-                {columns.map((col, colIndex) => (
+                {columns.map((col, colIndex) => {
+                  const multiOptions = multiOptionsForColumn(col)
+                  const cellKey = `${row.__settingsIndex ?? rowIndex}:${col}`
+                  const selectedMultiValues = multiOptions ? multiValueParts(row[col]) : []
+                  return (
                   <td
                     key={col}
                     className={[
@@ -3541,6 +3573,35 @@ function DataTable({
                           onChange={(event) => onCellChange?.(row, col, event.target.checked ? '1' : '')}
                         />
                       </label>
+                    ) : editable && multiOptions ? (
+                      <div className="cell-multi-select" onClick={(event) => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="cell-multi-button"
+                          title={valueToText(row[col]) || helpForColumn(col)}
+                          onClick={() => setOpenMultiCell((current) => (current === cellKey ? null : cellKey))}
+                        >
+                          {valueToText(row[col]) || '(빈값)'}
+                        </button>
+                        {openMultiCell === cellKey ? (
+                          <div className="cell-multi-popover">
+                            {multiOptions.map((option) => (
+                              <label key={option}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedMultiValues.includes(option)}
+                                  onChange={() => toggleMultiValue(row, col, option)}
+                                />
+                                <span>{option}</span>
+                              </label>
+                            ))}
+                            <div className="cell-multi-actions">
+                              <button type="button" onClick={() => onCellChange?.(row, col, '')}>비우기</button>
+                              <button type="button" onClick={() => setOpenMultiCell(null)}>닫기</button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     ) : editable && optionsForColumn(col) ? (
                       <select
                         className="cell-select"
@@ -3568,7 +3629,8 @@ function DataTable({
                       <span className="cell-text">{valueToText(row[col])}</span>
                     )}
                   </td>
-                ))}
+                  )
+                })}
               </tr>
             ))}
           </tbody>
