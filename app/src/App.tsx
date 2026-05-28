@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
   ClipboardCheck,
   CloudDownload,
@@ -16,7 +18,6 @@ import {
   PanelRightClose,
   Play,
   RefreshCw,
-  RotateCcw,
   Save,
   Search,
   Settings,
@@ -365,6 +366,7 @@ function App() {
   const [selectedRuleItem, setSelectedRuleItem] = useState('')
   const [ruleDraft, setRuleDraft] = useState<Record<string, string>>({})
   const [logs, setLogs] = useState<string[]>(['대기: API 호출 또는 샘플 로드를 실행하세요.'])
+  const [logCollapsed, setLogCollapsed] = useState(false)
   const [detailRow, setDetailRow] = useState<NoticeRow | null>(null)
   const [parserCache, setParserCache] = useState<Record<string, ParserResult>>({})
   const [preprocessSettings, setPreprocessSettings] = useState<PreprocessSettings>({})
@@ -449,7 +451,7 @@ function App() {
     const jongmokNeedle = jongmokFilter.trim()
     return stageRows.filter((row) =>
       (!needle || columns.some((col) => valueToText(row[col]).toLowerCase().includes(needle))) &&
-      (!dateNeedle || valueToText(row['입력일']).slice(0, 10) === dateNeedle) &&
+      (!dateNeedle || valueToText(row['입력일']).slice(0, 10) >= dateNeedle) &&
       (!jongmokNeedle || valueToText(row['종목']).includes(jongmokNeedle)),
     )
   }, [columns, dateFilter, jongmokFilter, search, stageRows])
@@ -469,6 +471,11 @@ function App() {
   const selectedRow = useMemo(
     () => humanRows.find((row) => valueToText(row['공고번호']) === selectedGongo) ?? humanRows[0],
     [humanRows, selectedGongo],
+  )
+
+  const finalGongoSet = useMemo(
+    () => new Set(finalRows.map((row) => valueToText(row['공고번호'])).filter(Boolean)),
+    [finalRows],
   )
 
   useEffect(() => {
@@ -517,20 +524,34 @@ function App() {
     }
   }
 
+  function applyCollectionImportFilters(rows: NoticeRow[]) {
+    const since = dateFilter.trim()
+    const jongmok = jongmokFilter.trim()
+    return rows.filter((row) => {
+      const autoCollect = valueToText(row['자동수집여부']).trim()
+      if (autoCollect !== '1') return false
+      const inputDate = valueToText(row['입력일']).slice(0, 10)
+      if (since && (!inputDate || inputDate < since)) return false
+      if (jongmok && !valueToText(row['종목']).includes(jongmok)) return false
+      return true
+    })
+  }
+
   async function loadA1() {
     setLoading(true)
     setStatus('A1 서버공고 호출 중')
     try {
       const data = await fetchA1ServerNotices(query)
-      setRawRows(data.rows)
+      const importedRows = applyCollectionImportFilters(data.rows)
+      setRawRows(importedRows)
       setPreRows([])
       setHumanRows([])
       setFinalRows([])
       setPreStats(null)
       setSource(data.source)
       setStage('collect')
-      setStatus(`A1 서버공고 ${data.rows.length}건 로드`)
-      addLog(`A1 서버공고 ${data.rows.length}건 로드`)
+      setStatus(`A1 서버공고 ${data.rows.length}건 중 자동수집 대상 ${importedRows.length}건 로드`)
+      addLog(`A1 서버공고 로드: 전체 ${data.rows.length}건, 자동수집여부=1 ${importedRows.length}건`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
     } finally {
@@ -538,7 +559,7 @@ function App() {
     }
   }
 
-  async function runPreprocess() {
+  function runBeforeNarashi() {
     if (!rawRows.length) {
       setStatus('수집 row가 없습니다. 샘플 또는 A1을 먼저 불러오세요.')
       return
@@ -546,7 +567,29 @@ function App() {
 
     const targetRows = stage === 'collect' ? filteredRows : rawRows
     if (!targetRows.length) {
-      setStatus('현재 필터에 해당하는 전처리 대상이 없습니다.')
+      setStatus('현재 필터에 해당하는 나라시 대상이 없습니다.')
+      return
+    }
+
+    const result = preprocessRows(targetRows, rules, preprocessSettings)
+    setPreRows(result.rows)
+    setHumanRows([])
+    setFinalRows([])
+    setPreStats(result.stats)
+    setStage('preprocess')
+    setStatus(`곡괭이전나라시 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건`)
+    addLog(`곡괭이전나라시 완료: 전체 ${result.stats.total}, 변경 ${result.stats.changed}, 확인 ${result.stats.review}, 오류 ${result.stats.errors}`)
+  }
+
+  async function runPreprocess() {
+    if (!preRows.length) {
+      setStatus('나라시 된 전처리 row가 없습니다. 입찰공고 원본에서 곡괭이전나라시를 먼저 실행하세요.')
+      return
+    }
+
+    const targetRows = stage === 'preprocess' ? filteredRows : preRows
+    if (!targetRows.length) {
+      setStatus('현재 필터에 해당하는 문서곡괭이 대상이 없습니다.')
       return
     }
 
@@ -554,7 +597,7 @@ function App() {
     setLoading(true)
     setPreprocessProgress({ running: true, done: 0, total: targetRows.length, failed: 0, current: '' })
     setStage('preprocess')
-    addLog(`곡괭이질 시작 — ${targetRows.length}건`)
+    addLog(`문서곡괭이질 시작 — ${targetRows.length}건`)
 
     const nextParserCache = { ...parserCache }
     const mergedRows: NoticeRow[] = []
@@ -614,13 +657,13 @@ function App() {
     const result = preprocessRows(mergedRows, rules, preprocessSettings)
     setPreRows(result.rows)
     setHumanRows(result.rows)
-    setFinalRows(result.rows)
+    setFinalRows([])
     setPreStats(result.stats)
     setStage('preprocess')
-    setStatus(`전처리 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건, A3 실패 ${failed}건`)
+    setStatus(`문서곡괭이질 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건, A3 실패 ${failed}건`)
     setPreprocessProgress({ running: false, done: result.stats.total, total: targetRows.length, failed, current: '' })
     setLoading(false)
-    addLog(`전처리 완료: 전체 ${result.stats.total}, 확인 ${result.stats.review}, 오류 ${result.stats.errors}, A3 실패 ${failed}`)
+    addLog(`문서곡괭이질 완료: 전체 ${result.stats.total}, 확인 ${result.stats.review}, 오류 ${result.stats.errors}, A3 실패 ${failed}`)
   }
 
   function stopPreprocess() {
@@ -636,7 +679,6 @@ function App() {
       return reprocessHumanRow({ ...row, ...draft }, rules, preprocessSettings)
     })
     setHumanRows(updated)
-    setFinalRows(updated)
     setStatus(`사람입력 저장 및 필요한 컬럼 재전처리: ${gongo}`)
     addLog(`사람입력 저장/재전처리: ${gongo}`)
   }
@@ -672,10 +714,11 @@ function App() {
   function finalizeRows() {
     const base = humanRows.length ? humanRows : preRows
     const result = preprocessRows(base, rules, preprocessSettings)
-    setFinalRows(result.rows)
+    const movedRows = result.rows.map((row) => ({ ...row, '2차분류이관': '1' }))
+    setFinalRows(movedRows)
     setStage('output')
-    setStatus(`최종출력 준비: ${result.rows.length}건`)
-    addLog(`최종출력 준비: ${result.rows.length}건`)
+    setStatus(`곡괭이후나라시 완료: ${movedRows.length}건 2차분류 완료로 이동`)
+    addLog(`곡괭이후나라시 완료 / 2차분류 이동: ${movedRows.length}건`)
   }
 
   function clearAllRows() {
@@ -786,6 +829,56 @@ function App() {
     setLogs((prev) => [`${now} ${message}`, ...prev].slice(0, 80))
   }
 
+  function renderStageActions() {
+    if (stage === 'collect') {
+      return (
+        <>
+          <button type="button" onClick={loadA1} disabled={loading || preprocessProgress.running}>
+            <Database size={15} />
+            API 호출
+          </button>
+          <button className="primary" type="button" onClick={runBeforeNarashi} disabled={!rawRows.length || loading || preprocessProgress.running}>
+            <Play size={15} />
+            곡괭이전나라시
+          </button>
+          <button type="button" onClick={loadLocalSample} disabled={loading}>
+            <RefreshCw size={15} />
+            샘플
+          </button>
+          <button className="danger" type="button" onClick={clearAllRows}>
+            <AlertTriangle size={15} />
+            모두 삭제
+          </button>
+        </>
+      )
+    }
+    if (stage === 'preprocess') {
+      return (
+        <>
+          <button className="primary" type="button" onClick={runPreprocess} disabled={!preRows.length || preprocessProgress.running}>
+            <Play size={15} />
+            문서곡괭이질 시작
+          </button>
+          {preprocessProgress.running ? (
+            <button className="danger" type="button" onClick={stopPreprocess}>
+              <PanelRightClose size={15} />
+              중단
+            </button>
+          ) : null}
+        </>
+      )
+    }
+    if (stage === 'output') {
+      return (
+        <button type="button" onClick={exportCurrent} disabled={!filteredRows.length}>
+          <FileDown size={15} />
+          엑셀 다운로드
+        </button>
+      )
+    }
+    return null
+  }
+
   function renderMain() {
     if (stage === 'flow') {
       return (
@@ -838,7 +931,6 @@ function App() {
           columns={columns}
           rows={visibleRows}
           stats={preStats}
-          onRun={runPreprocess}
           totalRows={stageRows.length}
           filteredRows={filteredRows.length}
           onRowOpen={setDetailRow}
@@ -860,6 +952,9 @@ function App() {
           onA3Parse={runA3ParserForSelected}
           parserNote={parserNote}
           loading={loading}
+          activeJongmok={jongmokFilter}
+          setActiveJongmok={setJongmokFilter}
+          finalGongoSet={finalGongoSet}
           onRowOpen={setDetailRow}
         />
       )
@@ -924,36 +1019,11 @@ function App() {
         </button>
       </header>
 
-      <section className="work-grid">
+      <section className={`work-grid ${logCollapsed ? 'log-collapsed' : ''}`}>
         <main className="main-workspace">
           <section className="command-row">
             <div className="total-chip">총 {stageRows.length.toLocaleString()}건</div>
-            <button type="button" onClick={loadA1} disabled={loading || preprocessProgress.running}>
-              <Database size={15} />
-              API 호출
-            </button>
-            <button className="primary" type="button" onClick={runPreprocess} disabled={!rawRows.length || preprocessProgress.running}>
-              <Play size={15} />
-              곡괭이질 시작
-            </button>
-            {preprocessProgress.running ? (
-              <button className="danger" type="button" onClick={stopPreprocess}>
-                <PanelRightClose size={15} />
-                중단
-              </button>
-            ) : null}
-            <button type="button" onClick={exportCurrent} disabled={!filteredRows.length}>
-              <FileDown size={15} />
-              엑셀 다운로드
-            </button>
-            <button type="button" onClick={loadLocalSample} disabled={loading}>
-              <RefreshCw size={15} />
-              샘플
-            </button>
-            <button className="danger" type="button" onClick={clearAllRows}>
-              <AlertTriangle size={15} />
-              모두 삭제
-            </button>
+            {renderStageActions()}
             <div className="toolbar-spacer" />
             <label className="toolbar-field narrow">
               <span>입력일</span>
@@ -1008,21 +1078,34 @@ function App() {
           {renderMain()}
         </main>
 
-        <aside className="ai-log-panel">
-          <div className="log-rail-label">AI 로그</div>
-          <div className="log-head">
-            <strong>처리 로그</strong>
-            <button type="button" onClick={() => setLogs([])}>
-              비우기
+        <aside className={`ai-log-panel ${logCollapsed ? 'collapsed' : ''}`}>
+          <div className="log-rail-label">
+            <span>AI 로그</span>
+            <button
+              type="button"
+              title={logCollapsed ? '로그 펼치기' : '로그 접기'}
+              onClick={() => setLogCollapsed((value) => !value)}
+            >
+              {logCollapsed ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
           </div>
-          <div className="log-list">
-            {logs.map((log, index) => (
-              <div key={`${log}-${index}`} className="log-row">
-                {log}
+          {!logCollapsed ? (
+            <>
+              <div className="log-head">
+                <strong>처리 로그</strong>
+                <button type="button" onClick={() => setLogs([])}>
+                  비우기
+                </button>
               </div>
-            ))}
-          </div>
+              <div className="log-list">
+                {logs.map((log, index) => (
+                  <div key={`${log}-${index}`} className="log-row">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
         </aside>
       </section>
       {detailRow ? <NoticeDetailModal row={detailRow} columns={columns} onClose={() => setDetailRow(null)} /> : null}
@@ -1288,7 +1371,6 @@ function PreprocessView({
   columns,
   rows,
   stats,
-  onRun,
   totalRows,
   filteredRows,
   onRowOpen,
@@ -1296,24 +1378,19 @@ function PreprocessView({
   columns: string[]
   rows: NoticeRow[]
   stats: PipelineStats | null
-  onRun: () => void
   totalRows: number
   filteredRows: number
   onRowOpen: (row: NoticeRow) => void
 }) {
-  const steps = ['곡괭이전나라시', '문서곡괭이', '곡괭이후나라시', '적격 1차', '적격 2차', '검증']
+  const steps = ['곡괭이전나라시 완료', 'A3 정규화 대기', '문서곡괭이 실행', '계산맨/적격매칭', '검증']
   return (
     <>
       <section className="pipeline-panel">
         <div className="section-head">
           <div>
-            <h2>곡괭이질</h2>
-            <span>수집 row를 전처리 row로 변환</span>
+            <h2>입찰공고 전처리</h2>
+            <span>곡괭이전나라시 결과를 확인한 뒤 상단의 문서곡괭이질 시작 버튼으로 A3 파싱을 실행합니다.</span>
           </div>
-          <button className="inline-action" type="button" onClick={onRun}>
-            <RotateCcw size={16} />
-            다시 전처리
-          </button>
         </div>
         <div className="pipeline">
           {steps.map((step, index) => (
@@ -1358,6 +1435,9 @@ function HumanView({
   onA3Parse,
   parserNote,
   loading,
+  activeJongmok,
+  setActiveJongmok,
+  finalGongoSet,
   onRowOpen,
 }: {
   columns: string[]
@@ -1372,10 +1452,52 @@ function HumanView({
   onA3Parse: () => void
   parserNote: string
   loading: boolean
+  activeJongmok: string
+  setActiveJongmok: (value: string) => void
+  finalGongoSet: Set<string>
   onRowOpen: (row: NoticeRow) => void
 }) {
+  const jongmokGroups = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; moved: number }>()
+    for (const row of allRows) {
+      const name = valueToText(row['종목']).trim() || '종목 미확인'
+      const gongo = valueToText(row['공고번호'])
+      const item = map.get(name) ?? { name, count: 0, moved: 0 }
+      item.count += 1
+      if (gongo && finalGongoSet.has(gongo)) item.moved += 1
+      map.set(name, item)
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ko'))
+  }, [allRows, finalGongoSet])
+
   return (
     <>
+      <section className="jongmok-review-panel">
+        <div className="section-head">
+          <div>
+            <h2>종목별 공고관리</h2>
+            <span>전처리된 공고를 종목별로 불러와 사람이 입력하고, 완료 후 곡괭이후나라시로 2차분류 완료에 보냅니다.</span>
+          </div>
+        </div>
+        <div className="jongmok-chip-list">
+          <button type="button" className={!activeJongmok ? 'active' : ''} onClick={() => setActiveJongmok('')}>
+            전체
+            <span>{allRows.length.toLocaleString()}건</span>
+          </button>
+          {jongmokGroups.map((group) => (
+            <button
+              key={group.name}
+              type="button"
+              className={activeJongmok === group.name ? 'active' : ''}
+              onClick={() => setActiveJongmok(group.name === '종목 미확인' ? '' : group.name)}
+            >
+              {group.name}
+              <span>{group.count.toLocaleString()}건</span>
+              {group.moved ? <b>{group.moved === group.count ? '이관완료' : `${group.moved}건 이관`}</b> : null}
+            </button>
+          ))}
+        </div>
+      </section>
       <section className="editor-panel">
         <div className="section-head">
           <div>
@@ -1393,7 +1515,7 @@ function HumanView({
             </button>
             <button className="inline-action" type="button" onClick={onFinalize} disabled={!allRows.length}>
               <ClipboardCheck size={16} />
-              최종분류
+              곡괭이후나라시
             </button>
           </div>
         </div>
