@@ -1953,8 +1953,8 @@ function preferredColumnsForSetting(key: string) {
       '조건판단형태',
       '이름',
       '출력',
-      '정규화범위',
       '키워드매칭방식',
+      '정규화범위',
       '우선섹션분류',
       '제외검사범위',
       '근거저장단위',
@@ -2720,6 +2720,24 @@ function normalizePolicyToggleValue(value: unknown) {
   return valueToText(value).trim() === 'OFF' ? 'OFF' : 'ON'
 }
 
+function parserGuideAllowsSectionPriority(row: NoticeRow) {
+  return valueToText(row['정규화범위'])
+    .split(/[,/|]/)
+    .map((item) => item.trim())
+    .some((item) => item === '문단' || item === '대섹션')
+}
+
+function normalizeParserTypeGuideRows(rows: NoticeRow[]) {
+  return rows.map((row) =>
+    parserGuideAllowsSectionPriority(row)
+      ? row
+      : {
+          ...row,
+          우선섹션분류: '',
+        },
+  )
+}
+
 function ParserTypeGuideView({
   rows,
   search,
@@ -2731,10 +2749,10 @@ function ParserTypeGuideView({
   onSaveSetting: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
   onDirtyChange?: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
 }) {
-  const [previewRows, setPreviewRows] = useState<NoticeRow[]>(rows)
+  const [previewRows, setPreviewRows] = useState<NoticeRow[]>(() => normalizeParserTypeGuideRows(rows))
 
   useEffect(() => {
-    setPreviewRows(rows)
+    setPreviewRows(normalizeParserTypeGuideRows(rows))
   }, [rows])
 
   const visibleRows = useMemo(() => {
@@ -2791,7 +2809,7 @@ function ParserTypeGuideView({
         dirtyLabel="조건판단형태 가이드"
         settingKey="parserTypeGuide"
         onSaveSetting={async (key, nextRows) => {
-          const saved = await onSaveSetting(key, nextRows)
+          const saved = await onSaveSetting(key, normalizeParserTypeGuideRows(nextRows))
           setPreviewRows(saved)
           return saved
         }}
@@ -2799,8 +2817,11 @@ function ParserTypeGuideView({
         selectColumnOptions={PARSER_TYPE_GUIDE_OPTIONS}
         multiSelectColumnOptions={PARSER_TYPE_GUIDE_MULTI_OPTIONS}
         columnHelpMap={PARSER_TYPE_GUIDE_HELP}
-        cellDisabled={(row, col) => PARSER_POLICY_COLUMNS.has(col) && Boolean(valueToText(row['정책고정사유']).trim())}
-        onDraftRowsChange={setPreviewRows}
+        cellDisabled={(row, col) =>
+          (PARSER_POLICY_COLUMNS.has(col) && Boolean(valueToText(row['정책고정사유']).trim())) ||
+          (col === '우선섹션분류' && !parserGuideAllowsSectionPriority(row))
+        }
+        onDraftRowsChange={(nextRows) => setPreviewRows(normalizeParserTypeGuideRows(nextRows))}
         controlledDraftRows={previewRows}
       />
 
