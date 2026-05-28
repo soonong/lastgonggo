@@ -1021,6 +1021,14 @@ tbody tr.selected-row td {
   outline: none;
 }
 
+.cell-select:disabled,
+.cell-editor:disabled,
+.cell-multi-button:disabled {
+  color: #647589;
+  background: #eef2f6;
+  cursor: not-allowed;
+}
+
 .cell-multi-select {
   position: relative;
   min-width: 0;

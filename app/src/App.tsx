@@ -2052,6 +2052,7 @@ function SettingsDatasetView({
   columnHelpMap = {},
   onDraftRowsChange,
   controlledDraftRows,
+  cellDisabled,
 }: {
   title: string
   rows: NoticeRow[]
@@ -2068,6 +2069,7 @@ function SettingsDatasetView({
   columnHelpMap?: Record<string, string>
   onDraftRowsChange?: (rows: NoticeRow[]) => void
   controlledDraftRows?: NoticeRow[]
+  cellDisabled?: (row: NoticeRow, col: string) => boolean
 }) {
   const editable = Boolean((settingKey && onSaveSetting) || onSaveRows)
   const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
@@ -2251,6 +2253,7 @@ function SettingsDatasetView({
         selectColumnOptions={selectColumnOptions}
         multiSelectColumnOptions={multiSelectColumnOptions}
         columnHelpMap={columnHelpMap}
+        cellDisabled={cellDisabled}
         onCellChange={changeCell}
         onRowClick={editable ? (row) => setSelectedIndex(Number(row.__settingsIndex)) : undefined}
         rowClassName={editable ? (row) => (Number(row.__settingsIndex) === selectedIndex ? 'selected-row' : '') : undefined}
@@ -2710,7 +2713,12 @@ const PARSER_POLICY_TOGGLES = [
   },
 ]
 
-const POLICY_TOGGLE_VALUES = ['전역', 'ON', 'OFF'] as const
+const PARSER_POLICY_COLUMNS = new Set(PARSER_POLICY_TOGGLES.map((item) => item.column))
+const POLICY_TOGGLE_VALUES = ['ON', 'OFF'] as const
+
+function normalizePolicyToggleValue(value: unknown) {
+  return valueToText(value).trim() === 'OFF' ? 'OFF' : 'ON'
+}
 
 function ParserTypeGuideView({
   rows,
@@ -2761,9 +2769,7 @@ function ParserTypeGuideView({
   ].filter(([, value]) => value.trim())
 
   function policyToggleValue(column: string) {
-    const value = valueToText(active?.[column]).trim()
-    if (value) return value
-    return isPolicyLocked ? '고정' : '전역'
+    return normalizePolicyToggleValue(active?.[column])
   }
 
   function changePolicyToggle(column: string, value: string) {
@@ -2793,6 +2799,7 @@ function ParserTypeGuideView({
         selectColumnOptions={PARSER_TYPE_GUIDE_OPTIONS}
         multiSelectColumnOptions={PARSER_TYPE_GUIDE_MULTI_OPTIONS}
         columnHelpMap={PARSER_TYPE_GUIDE_HELP}
+        cellDisabled={(row, col) => PARSER_POLICY_COLUMNS.has(col) && Boolean(valueToText(row['정책고정사유']).trim())}
         onDraftRowsChange={setPreviewRows}
         controlledDraftRows={previewRows}
       />
@@ -2897,7 +2904,7 @@ function ParserTypeGuideView({
         <strong>매칭 정책 / 추가 사양</strong>
         <ul>
           <li>multi-type fallback: types 배열은 위에서 아래로 시도하고 첫 매치를 채택합니다.</li>
-          <li>단어 경계와 공백 무시는 기본 정책입니다. 1_4와 2_2는 코드에서 일부 정책을 고정합니다.</li>
+          <li>정책은 ON/OFF만 사용합니다. 정책고정사유가 있는 타입은 코드 기준으로 고정되어 표와 토글에서 수정할 수 없습니다.</li>
           <li>제외키워드는 매치된 값이나 주변 문장에 하나라도 있으면 OR 조건으로 차단합니다.</li>
           <li>5_1은 추출값을 만들지 않고 검색 종료점만 설정합니다.</li>
           <li>7_1은 공고확인, 특수실적, 특수실적_공통 같은 설정 마스터와 연결됩니다.</li>
@@ -3241,9 +3248,9 @@ const PARSER_TYPE_GUIDE_OPTIONS: Record<string, string[]> = {
   제외검사범위: ['', '같은 문단', '같은 표', '같은 대섹션', '전체본문', '같은 문단 또는 같은 표', '같은 문단 또는 같은 대섹션', '매칭 구간 포함 같은 문단', '매칭 문단 또는 같은 대섹션'],
   근거저장단위: ['', '매칭 원문줄', '매칭 문단', '매칭 문단 목록', '매칭 문단/표 셀', '문단 또는 대섹션', '표번호+행열', '종료점 위치'],
   정책고정사유: ['', '이 타입은 코드 정책이 고정되어 개별 토글을 사용하지 않습니다.', '이 타입은 의도적 부분매칭이라 개별 정책 토글을 사용하지 않습니다.'],
-  정책_공백무시: ['전역', 'ON', 'OFF', '고정'],
-  정책_단어경계: ['전역', 'ON', 'OFF', '고정'],
-  정책_제외검사: ['전역', 'ON', 'OFF', '고정'],
+  정책_공백무시: ['ON', 'OFF'],
+  정책_단어경계: ['ON', 'OFF'],
+  정책_제외검사: ['ON', 'OFF'],
 }
 
 const PARSER_TYPE_GUIDE_MULTI_OPTIONS: Record<string, string[]> = {
@@ -3264,9 +3271,9 @@ const PARSER_TYPE_GUIDE_HELP: Record<string, string> = {
   근거저장단위: '검수 화면에 저장하고 보여줄 원문 근거 단위입니다.',
   판단로직: '문서곡괭이가 이 타입을 실행하는 순서입니다. 여러 단계는 | 로 구분합니다.',
   동작특성: '토글 정책이 아니라 이 조건판단형태 자체가 가진 동작 특징입니다. 예: 와일드카드, 다중 블록, 마스터 교집합.',
-  정책_공백무시: '이 조건판단형태에서 공백 무시 정책을 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
-  정책_단어경계: '이 조건판단형태에서 단어 경계 정책을 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
-  정책_제외검사: '이 조건판단형태에서 제외키워드 검사를 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
+  정책_공백무시: 'ON이면 본문과 키워드의 공백 차이를 무시합니다. OFF이면 입력한 공백까지 그대로 봅니다.',
+  정책_단어경계: 'ON이면 키워드 앞뒤에 다른 글자가 붙은 부분매치를 막습니다. OFF이면 부분매칭을 허용합니다.',
+  정책_제외검사: 'ON이면 제외키워드를 검사해 매칭을 버릴 수 있습니다. OFF이면 제외키워드를 보지 않습니다.',
   예시본문: '이 조건판단형태를 검증할 수 있는 짧은 예시 본문입니다.',
   결과예시: '예시본문에서 기대하는 추출 결과입니다.',
   주의: '오탐, 누락, 제외키워드 필요성 등 운영자가 알아야 할 함정입니다.',
@@ -3495,6 +3502,7 @@ function DataTable({
   multiSelectColumnOptions = {},
   columnHelpMap = {},
   expandableTextColumns = [],
+  cellDisabled,
   onCellChange,
   rowClassName,
 }: {
@@ -3509,6 +3517,7 @@ function DataTable({
   multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
   expandableTextColumns?: string[]
+  cellDisabled?: (row: NoticeRow, col: string) => boolean
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
 }) {
@@ -3672,6 +3681,7 @@ function DataTable({
                   const selectedMultiValues = multiOptions ? multiValueParts(row[col]) : []
                   const canExpandTextCell = editable && expandableTextColumnSet.has(col)
                   const isExpandedTextCell = canExpandTextCell && expandedTextCell === cellKey
+                  const disabled = cellDisabled?.(row, col) ?? false
                   return (
                   <td
                     key={col}
@@ -3689,6 +3699,7 @@ function DataTable({
                         <input
                           type="checkbox"
                           checked={isCheckedValue(row[col])}
+                          disabled={disabled}
                           onChange={(event) => onCellChange?.(row, col, event.target.checked ? '1' : '')}
                         />
                       </label>
@@ -3698,6 +3709,7 @@ function DataTable({
                           type="button"
                           className="cell-multi-button"
                           title={valueToText(row[col]) || helpForColumn(col)}
+                          disabled={disabled}
                           onClick={() => setOpenMultiCell((current) => (current === cellKey ? null : cellKey))}
                         >
                           {valueToText(row[col]) || '(빈값)'}
@@ -3709,6 +3721,7 @@ function DataTable({
                                 <input
                                   type="checkbox"
                                   checked={selectedMultiValues.includes(option)}
+                                  disabled={disabled}
                                   onChange={() => toggleMultiValue(row, col, option)}
                                 />
                                 <span>{option}</span>
@@ -3726,6 +3739,7 @@ function DataTable({
                         className="cell-select"
                         value={valueToText(row[col])}
                         title={valueToText(row[col])}
+                        disabled={disabled}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => onCellChange?.(row, col, event.target.value)}
                       >
@@ -3740,6 +3754,7 @@ function DataTable({
                         className={['cell-editor', canExpandTextCell ? 'cell-editor-expandable' : '', isExpandedTextCell ? 'cell-editor-expanded' : ''].join(' ')}
                         value={valueToText(row[col])}
                         title={valueToText(row[col])}
+                        disabled={disabled}
                         onClick={(event) => {
                           event.stopPropagation()
                           if (canExpandTextCell) setExpandedTextCell(cellKey)

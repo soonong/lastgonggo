@@ -1059,10 +1059,10 @@ function pickMoneyValue(sourceText, rule) {
 
 function findFirstAvailableHit(text, blocks, keywords, excludeKeywords, gap = 15, type = '') {
   for (const keyword of keywords) {
-    const hit = findKeywordHit(text, blocks, keyword, gap)
+    const hit = findKeywordHit(text, blocks, keyword, gap, type)
     if (!hit) continue
     if (!isHitAllowedByNormalizationScope(type, hit)) continue
-    if (isHitExcluded(hit.sourceText, excludeKeywords)) continue
+    if (isHitExcluded(hit.sourceText, excludeKeywords, type)) continue
     return { ...hit, matchedKeyword: keyword }
   }
   return null
@@ -1154,17 +1154,17 @@ function splitRuleKeywords(value) {
     .filter(Boolean)
 }
 
-function findKeywordHit(text, blocks, keyword, gap = 15) {
+function findKeywordHit(text, blocks, keyword, gap = 15, type = '') {
   const alias = parseAliasKeyword(keyword)
   if (alias) {
     for (const candidate of alias.candidates) {
-      const hit = findKeywordHit(text, blocks, candidate, gap)
+      const hit = findKeywordHit(text, blocks, candidate, gap, type)
       if (hit) return { ...hit, aliasLabel: alias.label }
     }
     return null
   }
 
-  const regex = keywordToRegex(keyword, gap)
+  const regex = keywordToRegex(keyword, gap, parserTypePolicy(type))
   for (const block of blocks) {
     const sourceText = blockText(block)
     const match = sourceText.match(regex)
@@ -1225,6 +1225,36 @@ function parserTypeScopes() {
   }
 }
 
+let parserTypePolicyCache = null
+let parserTypePolicyMtime = 0
+function parserTypePolicies() {
+  const filePath = path.join(paths.settingsDir, settingFiles.parserTypeGuide)
+  try {
+    const mtime = fs.statSync(filePath).mtimeMs
+    if (parserTypePolicyCache && parserTypePolicyMtime === mtime) return parserTypePolicyCache
+    const rows = readCsv(filePath)
+    const next = new Map()
+    for (const row of rows) {
+      const type = String(row['조건판단형태'] || '').trim()
+      if (!type) continue
+      next.set(type, {
+        whitespace: String(row['정책_공백무시'] || 'ON').trim() !== 'OFF',
+        wordBoundary: String(row['정책_단어경계'] || 'ON').trim() !== 'OFF',
+        exclude: String(row['정책_제외검사'] || 'ON').trim() !== 'OFF',
+      })
+    }
+    parserTypePolicyCache = next
+    parserTypePolicyMtime = mtime
+    return next
+  } catch {
+    return new Map()
+  }
+}
+
+function parserTypePolicy(type) {
+  return parserTypePolicies().get(String(type || '').trim()) ?? { whitespace: true, wordBoundary: true, exclude: true }
+}
+
 function parseAliasKeyword(keyword) {
   const match = String(keyword || '').trim().match(/^\(([^:]+):(.+)\)$/)
   if (!match) return null
@@ -1234,17 +1264,36 @@ function parseAliasKeyword(keyword) {
   }
 }
 
-function keywordToRegex(keyword, gap = 15) {
+function keywordPartToRegex(part, whitespaceInsensitive) {
+  if (!whitespaceInsensitive) {
+    return String(part || '')
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/:/g, '\\s*[:：]\\s*')
+      .replace(/\s+/g, '\\s*')
+  }
+  const tokens = []
+  for (const char of Array.from(String(part || '').trim())) {
+    if (/\s/.test(char)) continue
+    if (char === ':') tokens.push('\\s*[:：]\\s*')
+    else tokens.push(char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  }
+  return tokens.join('\\s*')
+}
+
+function keywordToRegex(keyword, gap = 15, policy = { whitespace: true }) {
+  const whitespaceInsensitive = policy.whitespace !== false
   const escaped = String(keyword || '')
     .trim()
     .split('*')
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/:/g, '\\s*[:：]\\s*').replace(/\s+/g, '\\s*'))
+    .map((part) => keywordPartToRegex(part, whitespaceInsensitive))
     .join(`[\\s\\S]{0,${gap}}`)
   return new RegExp(escaped, 'i')
 }
 
-function isHitExcluded(sourceText, excludeKeywords) {
-  return excludeKeywords.some((keyword) => keywordToRegex(keyword).test(sourceText))
+function isHitExcluded(sourceText, excludeKeywords, type = '') {
+  const policy = parserTypePolicy(type)
+  if (policy.exclude === false) return false
+  return excludeKeywords.some((keyword) => keywordToRegex(keyword, 15, policy).test(sourceText))
 }
 
 function sanitizeNoticeHtml(html) {
