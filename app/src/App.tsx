@@ -156,6 +156,31 @@ function valueToText(value: unknown) {
   return String(value)
 }
 
+function splitJongmokTokens(value: unknown) {
+  return Array.from(
+    new Set(
+      valueToText(value)
+        .replace(/[{}[\]"']/g, ' ')
+        .split(/[\/,()]+/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function rowJongmokTokens(row: NoticeRow) {
+  return splitJongmokTokens(row['종목'])
+}
+
+function isHumanReviewCandidate(row: NoticeRow, targetJongmok: string, finalGongoSet: Set<string>) {
+  const gongo = valueToText(row['공고번호'])
+  if (gongo && finalGongoSet.has(gongo)) return false
+  if (!targetJongmok) return true
+  const tokens = rowJongmokTokens(row)
+  if (targetJongmok === '종목 미확인') return tokens.length === 0
+  return tokens.includes(targetJongmok)
+}
+
 function buildDisplayFormatMap(rules: StandardColumnRule[]) {
   const map: Record<string, string> = {}
   for (const rule of rules) {
@@ -571,6 +596,14 @@ function App() {
 
   const columns = useMemo(() => getColumns(stageRows, profiles, rules), [stageRows, profiles, rules])
   const displayFormatMap = useMemo(() => buildDisplayFormatMap(rules), [rules])
+  const finalGongoSet = useMemo(
+    () => new Set(finalRows.map((row) => valueToText(row['공고번호'])).filter(Boolean)),
+    [finalRows],
+  )
+  const humanReviewRows = useMemo(
+    () => humanRows.filter((row) => isHumanReviewCandidate(row, jongmokFilter, finalGongoSet)),
+    [finalGongoSet, humanRows, jongmokFilter],
+  )
   const jongmokOptions = useMemo(() => {
     const values = (settingRows.jongmokMap ?? [])
       .map((row) => valueToText(row['업종']).trim())
@@ -585,9 +618,11 @@ function App() {
     return stageRows.filter((row) =>
       (!needle || columns.some((col) => valueToText(row[col]).toLowerCase().includes(needle))) &&
       (!dateNeedle || valueToText(row['입력일']).slice(0, 10) >= dateNeedle) &&
-      (!jongmokNeedle || valueToText(row['종목']).includes(jongmokNeedle)),
+      (stage === 'human'
+        ? isHumanReviewCandidate(row, jongmokNeedle, finalGongoSet)
+        : !jongmokNeedle || valueToText(row['종목']).includes(jongmokNeedle)),
     )
-  }, [columns, dateFilter, jongmokFilter, search, stageRows])
+  }, [columns, dateFilter, finalGongoSet, jongmokFilter, search, stage, stageRows])
 
   const visibleRows = filteredRows.slice(0, rowLimit)
   const emptyCells = useMemo(() => {
@@ -602,13 +637,8 @@ function App() {
   }, [columns, stageRows])
 
   const selectedRow = useMemo(
-    () => humanRows.find((row) => valueToText(row['공고번호']) === selectedGongo) ?? humanRows[0],
-    [humanRows, selectedGongo],
-  )
-
-  const finalGongoSet = useMemo(
-    () => new Set(finalRows.map((row) => valueToText(row['공고번호'])).filter(Boolean)),
-    [finalRows],
+    () => humanReviewRows.find((row) => valueToText(row['공고번호']) === selectedGongo) ?? humanReviewRows[0],
+    [humanReviewRows, selectedGongo],
   )
 
   useEffect(() => {
@@ -841,12 +871,19 @@ function App() {
 
   function finalizeRows() {
     const base = humanRows.length ? humanRows : preRows
-    const result = preprocessRows(base, rules, preprocessSettings)
-    const movedRows = result.rows.map((row) => ({ ...row, '2차분류이관': '1' }))
-    setFinalRows(movedRows)
+    const targetRows = base.filter((row) => isHumanReviewCandidate(row, jongmokFilter, finalGongoSet))
+    if (!targetRows.length) {
+      setStatus(jongmokFilter ? `${jongmokFilter} 이관 대상이 없습니다.` : '2차분류 이관 대상이 없습니다.')
+      return
+    }
+    const result = preprocessRows(targetRows, rules, preprocessSettings)
+    const movedRows: NoticeRow[] = result.rows.map((row) => ({ ...row, '2차분류이관': '1', '2차분류_종목': jongmokFilter || '전체' }))
+    const movedGongoSet = new Set(movedRows.map((row) => valueToText(row['공고번호'])).filter(Boolean))
+    const keptFinalRows = finalRows.filter((row) => !movedGongoSet.has(valueToText(row['공고번호'])))
+    setFinalRows([...keptFinalRows, ...movedRows])
     setStage('output')
-    setStatus(`곡괭이후나라시 완료: ${movedRows.length}건 2차분류 완료로 이동`)
-    addLog(`곡괭이후나라시 완료 / 2차분류 이동: ${movedRows.length}건`)
+    setStatus(`곡괭이후나라시 완료: ${jongmokFilter || '전체'} ${movedRows.length}건 2차분류 완료로 이동`)
+    addLog(`곡괭이후나라시 완료 / 2차분류 이동: ${jongmokFilter || '전체'} ${movedRows.length}건`)
   }
 
   function clearAllRows() {
@@ -1241,7 +1278,7 @@ function App() {
     if (target === 'flow') return (settingRows.workflowMap ?? []).length
     if (target === 'collect') return rawRows.length
     if (target === 'preprocess') return preRows.length
-    if (target === 'human') return humanRows.length
+    if (target === 'human') return humanRows.filter((row) => !finalGongoSet.has(valueToText(row['공고번호']))).length
     if (target === 'output') return finalRows.length
     return 0
   }
@@ -1541,15 +1578,20 @@ function HumanView({
   const jongmokGroups = useMemo(() => {
     const map = new Map<string, { name: string; count: number; moved: number }>()
     for (const row of allRows) {
-      const name = valueToText(row['종목']).trim() || '종목 미확인'
       const gongo = valueToText(row['공고번호'])
-      const item = map.get(name) ?? { name, count: 0, moved: 0 }
-      item.count += 1
-      if (gongo && finalGongoSet.has(gongo)) item.moved += 1
-      map.set(name, item)
+      const moved = Boolean(gongo && finalGongoSet.has(gongo))
+      const tokens = rowJongmokTokens(row)
+      const names = tokens.length ? tokens : ['종목 미확인']
+      for (const name of names) {
+        const item = map.get(name) ?? { name, count: 0, moved: 0 }
+        if (moved) item.moved += 1
+        else item.count += 1
+        map.set(name, item)
+      }
     }
-    return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ko'))
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.moved - a.moved || a.name.localeCompare(b.name, 'ko'))
   }, [allRows, finalGongoSet])
+  const pendingCount = allRows.filter((row) => isHumanReviewCandidate(row, '', finalGongoSet)).length
 
   return (
     <>
@@ -1562,19 +1604,19 @@ function HumanView({
         </div>
         <div className="jongmok-chip-list">
           <button type="button" className={!activeJongmok ? 'active' : ''} onClick={() => setActiveJongmok('')}>
-            전체
-            <span>{allRows.length.toLocaleString()}건</span>
+            미완료 전체
+            <span>{pendingCount.toLocaleString()}건</span>
           </button>
           {jongmokGroups.map((group) => (
             <button
               key={group.name}
               type="button"
               className={activeJongmok === group.name ? 'active' : ''}
-              onClick={() => setActiveJongmok(group.name === '종목 미확인' ? '' : group.name)}
+              onClick={() => setActiveJongmok(group.name)}
             >
               {group.name}
               <span>{group.count.toLocaleString()}건</span>
-              {group.moved ? <b>{group.moved === group.count ? '이관완료' : `${group.moved}건 이관`}</b> : null}
+              {group.moved ? <b>{group.count === 0 ? '이관완료' : `${group.moved}건 이관`}</b> : null}
             </button>
           ))}
         </div>
@@ -1586,17 +1628,17 @@ function HumanView({
             <span>사람이 고친 값은 저장 후 필요한 컬럼만 재전처리</span>
           </div>
           <div className="panel-actions">
-            <button className="inline-action" type="button" onClick={onSave} disabled={!allRows.length}>
+            <button className="inline-action" type="button" onClick={onSave} disabled={!rows.length}>
               <Save size={16} />
               저장/재전처리
             </button>
-            <button className="inline-action" type="button" onClick={onA3Parse} disabled={!allRows.length || loading}>
+            <button className="inline-action" type="button" onClick={onA3Parse} disabled={!rows.length || loading}>
               <Search size={16} />
               A3 문서곡괭이
             </button>
-            <button className="inline-action" type="button" onClick={onFinalize} disabled={!allRows.length}>
+            <button className="inline-action" type="button" onClick={onFinalize} disabled={!rows.length}>
               <ClipboardCheck size={16} />
-              곡괭이후나라시
+              2차분류 완료로 이동
             </button>
           </div>
         </div>
@@ -1604,7 +1646,7 @@ function HumanView({
           <label className="wide-field">
             <span>공고 선택</span>
             <select value={selectedGongo} onChange={(event) => setSelectedGongo(event.target.value)}>
-              {allRows.map((row, index) => {
+              {rows.map((row, index) => {
                 const gongo = valueToText(row['공고번호']) || `row-${index + 1}`
                 return (
                   <option key={`${gongo}-${index}`} value={gongo}>
