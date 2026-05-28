@@ -2677,7 +2677,7 @@ function firstConditionTypeRank(value: unknown) {
 
 function splitRuleTypesForDisplay(value: unknown) {
   return valueToText(value)
-    .split(',')
+    .split(/[,;\n]/)
     .map((item) => item.trim())
     .filter(Boolean)
 }
