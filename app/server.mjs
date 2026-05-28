@@ -1147,7 +1147,7 @@ function keywordToRegex(keyword, gap = 15) {
   const escaped = String(keyword || '')
     .trim()
     .split('*')
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*'))
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/:/g, '\\s*[:：]\\s*').replace(/\s+/g, '\\s*'))
     .join(`[\\s\\S]{0,${gap}}`)
   return new RegExp(escaped, 'i')
 }
