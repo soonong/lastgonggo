@@ -48,6 +48,7 @@ const settingFiles = {
   powerPlantRegion: '발전소지역.csv',
   regionHint: '지역힌트.csv',
   parserRules: '문서곡괭이_룰.csv',
+  newDocumentPickaxeRules: '신문서곡괭이_룰.csv',
   parserTypeGuide: '조건판단형태_가이드.csv',
   sectionRules: '섹션분류_룰.csv',
   bidMethodSkip: '적격심사_제외입찰방식.csv',
@@ -435,6 +436,44 @@ async function documentPickaxeRuleTest(req, res) {
   })
 }
 
+async function documentPickaxeBatchTest(req, res) {
+  const raw = await readBody(req)
+  const data = JSON.parse(raw || '{}')
+  const gongsanum = String(data.gongsanum || data.공고번호 || '').trim()
+  const rows = Array.isArray(data.rows) ? data.rows : []
+  if (!gongsanum) {
+    sendJson(res, 400, { error: 'missing_gongsanum', message: '공고번호가 필요합니다.' })
+    return
+  }
+  const moduleKey = process.env.BID_MODULE_KEY
+  if (!moduleKey) {
+    sendJson(res, 400, {
+      error: 'missing_module_key',
+      message: 'BID_MODULE_KEY가 없어 A3 공고번호 테스트를 실행할 수 없습니다.',
+    })
+    return
+  }
+
+  const body = await fetchA3Html(gongsanum, moduleKey)
+  const normalized = normalizeNoticeHtml(body)
+  const fields = {}
+  const evidence = {}
+  const matches = []
+  const executableRows = cleanNewDocumentPickaxeRows(rows).filter((row) =>
+    String(row['조건판단형태'] || '').trim() && String(row['검색키워드'] || '').trim(),
+  )
+  applyEditableParserRules(normalized.text, normalized.blocks, fields, evidence, matches, executableRows)
+  sendJson(res, 200, {
+    공고번호: gongsanum,
+    htmlLength: body.length,
+    textLength: normalized.text.length,
+    fields,
+    evidence,
+    matches,
+    testedRows: executableRows.length,
+  })
+}
+
 async function proxyQualification(reqUrl, res) {
   const detail = reqUrl.searchParams.get('적격기준세부') || reqUrl.searchParams.get('detail') || ''
   const construction = reqUrl.searchParams.get('건설') || reqUrl.searchParams.get('construction') || '일반건설'
@@ -743,6 +782,52 @@ function readParserRuleRows() {
   } catch {
     return []
   }
+}
+
+function readNewDocumentPickaxeRows() {
+  const filePath = path.join(paths.settingsDir, settingFiles.newDocumentPickaxeRules)
+  const storedRows = fs.existsSync(filePath) ? readCsv(filePath) : []
+  const byItem = new Map(storedRows.map((row) => [String(row['항목'] || '').trim(), row]))
+  const standardItems = readCsv(paths.standardColumns)
+    .map((row) => String(row['항목'] || '').trim())
+    .filter(Boolean)
+  const rows = []
+  const seen = new Set()
+  for (const item of standardItems) {
+    const existing = byItem.get(item)
+    rows.push({
+      항목: item,
+      조건판단형태: String(existing?.['조건판단형태'] || ''),
+      검색키워드: String(existing?.['검색키워드'] || ''),
+      제외키워드: String(existing?.['제외키워드'] || ''),
+      고정값: String(existing?.['고정값'] || ''),
+      결과값: '',
+    })
+    seen.add(item)
+  }
+  for (const row of storedRows) {
+    const item = String(row['항목'] || '').trim()
+    if (!item || seen.has(item)) continue
+    rows.push({
+      항목: item,
+      조건판단형태: String(row['조건판단형태'] || ''),
+      검색키워드: String(row['검색키워드'] || ''),
+      제외키워드: String(row['제외키워드'] || ''),
+      고정값: String(row['고정값'] || ''),
+      결과값: '',
+    })
+  }
+  return rows
+}
+
+function cleanNewDocumentPickaxeRows(rows) {
+  return rows.map((row) => ({
+    항목: String(row['항목'] || '').trim(),
+    조건판단형태: String(row['조건판단형태'] || ''),
+    검색키워드: String(row['검색키워드'] || ''),
+    제외키워드: String(row['제외키워드'] || ''),
+    고정값: String(row['고정값'] || ''),
+  })).filter((row) => row.항목)
 }
 
 function normalizeNoticeHtml(html) {
@@ -1148,9 +1233,15 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') {
         const body = await readBody(req)
         const data = JSON.parse(body || '{}')
-        const rows = Array.isArray(data.rows) ? data.rows : []
+        const rows = key === 'newDocumentPickaxeRules'
+          ? cleanNewDocumentPickaxeRows(Array.isArray(data.rows) ? data.rows : [])
+          : Array.isArray(data.rows) ? data.rows : []
         writeCsv(path.join(paths.settingsDir, fileName), rows)
         sendJson(res, 200, { ok: true, rows, source: fileName })
+        return
+      }
+      if (key === 'newDocumentPickaxeRules') {
+        sendJson(res, 200, { rows: readNewDocumentPickaxeRows(), source: fileName })
         return
       }
       sendJson(res, 200, { rows: readCsv(path.join(paths.settingsDir, fileName)), source: fileName })
@@ -1184,6 +1275,11 @@ const server = http.createServer(async (req, res) => {
 
     if (reqUrl.pathname === '/api/document-pickaxe/rule-test' && req.method === 'POST') {
       await documentPickaxeRuleTest(req, res)
+      return
+    }
+
+    if (reqUrl.pathname === '/api/document-pickaxe/batch-test' && req.method === 'POST') {
+      await documentPickaxeBatchTest(req, res)
       return
     }
 

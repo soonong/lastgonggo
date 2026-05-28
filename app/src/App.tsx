@@ -38,6 +38,7 @@ import {
   fetchServerColumnProfiles,
   fetchSettingsRows,
   fetchStandardColumnRules,
+  runDocumentPickaxeBatchTest,
   runDocumentPickaxeRuleTest,
   saveSettingsRows,
   saveStandardColumnRules,
@@ -84,6 +85,7 @@ const settingsLoadKeys = [
   'powerPlantRegion',
   'regionHint',
   'parserRules',
+  'newDocumentPickaxeRules',
   'parserTypeGuide',
   'sectionRules',
   'bidMethodSkip',
@@ -1769,6 +1771,17 @@ function SettingsContent({
       />
     )
   }
+  if (screenType === 'newPickaxe') {
+    return (
+      <NewDocumentPickaxeView
+        rows={settings.newDocumentPickaxeRules ?? []}
+        search={search}
+        parserTypeGuide={settings.parserTypeGuide ?? []}
+        onSaveSetting={onSaveSetting}
+        onDirtyChange={onDirtyChange}
+      />
+    )
+  }
   if (screenType === 'guide') {
     return <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} onSaveSetting={onSaveSetting} onDirtyChange={onDirtyChange} />
   }
@@ -1952,6 +1965,7 @@ function preferredColumnsForSetting(key: string) {
       '정책고정사유',
     ],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
+    newDocumentPickaxeRules: ['항목', '조건판단형태', '검색키워드', '제외키워드', '고정값', '결과값'],
     sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
     bidMethodSkip: ['id', '입찰방식', '메모'],
   }
@@ -2072,8 +2086,8 @@ function SettingsDatasetView({
   useEffect(() => {
     if (!controlledDraftRows) return
     setDraftRows((prev) => {
-      const prevText = JSON.stringify(prev.map(stripSettingsMeta))
-      const nextText = JSON.stringify(controlledDraftRows.map(stripSettingsMeta))
+      const prevText = JSON.stringify(prev.map((row) => stripSettingsMeta(row)))
+      const nextText = JSON.stringify(controlledDraftRows.map((row) => stripSettingsMeta(row)))
       return prevText === nextText ? prev : controlledDraftRows
     })
   }, [controlledDraftRows])
@@ -2101,7 +2115,10 @@ function SettingsDatasetView({
   const pageStart = pageSize === 'all' ? 0 : (safePage - 1) * effectivePageSize
   const pageRows = pageSize === 'all' ? filtered : filtered.slice(pageStart, pageStart + effectivePageSize)
   const displayed = pageRows.map((row) => ({ ...row, __settingsIndex: sourceRows.indexOf(row) }))
-  const isDirty = editable && JSON.stringify(draftRows.map(stripSettingsMeta)) !== JSON.stringify(rows.map(stripSettingsMeta))
+  const dirtyIgnoredColumns = datasetId === 'newDocumentPickaxeRules' ? ['결과값'] : []
+  const isDirty = editable
+    && JSON.stringify(draftRows.map((row) => stripSettingsMeta(row, dirtyIgnoredColumns)))
+      !== JSON.stringify(rows.map((row) => stripSettingsMeta(row, dirtyIgnoredColumns)))
 
   function changeCell(row: NoticeRow, col: string, value: string) {
     const index = Number(row.__settingsIndex)
@@ -2142,7 +2159,7 @@ function SettingsDatasetView({
 
   async function saveRows() {
     if (!onSaveRows && (!settingKey || !onSaveSetting)) return
-    const cleanRows = draftRows.map(stripSettingsMeta)
+    const cleanRows = draftRows.map((row) => stripSettingsMeta(row))
     const saved = onSaveRows ? await onSaveRows(cleanRows) : await onSaveSetting!(settingKey!, cleanRows)
     setDraftRows(saved)
     onDraftRowsChange?.(saved)
@@ -2150,7 +2167,7 @@ function SettingsDatasetView({
   }
 
   function downloadCsv() {
-    const exportRows = sourceRows.map(stripSettingsMeta)
+    const exportRows = sourceRows.map((row) => stripSettingsMeta(row))
     const exportColumns = columnsForRows(exportRows, columns)
     const today = new Date().toISOString().slice(0, 10)
     exportCsv(exportRows, exportColumns, `${today}_${safeFileName(title)}.csv`)
@@ -2241,10 +2258,12 @@ function SettingsDatasetView({
   )
 }
 
-function stripSettingsMeta(row: NoticeRow) {
+function stripSettingsMeta(row: NoticeRow, ignoredColumns: string[] = []) {
   const clean: NoticeRow = {}
+  const ignored = new Set(ignoredColumns)
   for (const [key, value] of Object.entries(row)) {
     if (key.startsWith('__')) continue
+    if (ignored.has(key)) continue
     clean[key] = value
   }
   return clean
@@ -2466,6 +2485,121 @@ function normalizeParserRuleRow(row: NoticeRow) {
     acc[field] = valueToText(row[field])
     return acc
   }, {})
+}
+
+function NewDocumentPickaxeView({
+  rows,
+  search,
+  parserTypeGuide,
+  onSaveSetting,
+  onDirtyChange,
+}: {
+  rows: NoticeRow[]
+  search: string
+  parserTypeGuide: NoticeRow[]
+  onSaveSetting: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
+  onDirtyChange: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
+}) {
+  const [noticeNo, setNoticeNo] = useState('2026-06694')
+  const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
+  const [status, setStatus] = useState('공고번호를 넣고 실행하면 결과값이 채워집니다.')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setDraftRows(rows)
+  }, [rows])
+
+  const typeOptions = useMemo(
+    () => ['', ...parserTypeGuide.map((row) => valueToText(row['조건판단형태']).trim()).filter(Boolean)],
+    [parserTypeGuide],
+  )
+
+  function cleanRowsForSave(nextRows: NoticeRow[]) {
+    return nextRows.map((row) => ({
+      항목: valueToText(row['항목']).trim(),
+      조건판단형태: valueToText(row['조건판단형태']),
+      검색키워드: valueToText(row['검색키워드']),
+      제외키워드: valueToText(row['제외키워드']),
+      고정값: valueToText(row['고정값']),
+    })).filter((row) => row.항목)
+  }
+
+  async function runNotice() {
+    const target = noticeNo.trim()
+    if (!target) {
+      setStatus('공고번호가 필요합니다.')
+      return
+    }
+    setLoading(true)
+    setStatus(`${target} 신문서곡괭이 실행 중...`)
+    try {
+      const result = await runDocumentPickaxeBatchTest({ gongsanum: target, rows: cleanRowsForSave(draftRows) })
+      const fields = result.fields ?? {}
+      const nextRows = draftRows.map((row) => {
+        const item = valueToText(row['항목']).trim()
+        return { ...row, 결과값: valueToText(fields[item]) }
+      })
+      setDraftRows(nextRows)
+      const filled = nextRows.filter((row) => valueToText(row['결과값']).trim()).length
+      setStatus(
+        `${target} 실행 완료: ${nextRows.length.toLocaleString()}개 항목 중 ${filled.toLocaleString()}개 추출, 근거 ${(result.matches ?? []).length.toLocaleString()}개`,
+      )
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="settings-stack new-pickaxe-view">
+      <section className="parser-test-panel">
+        <div className="parser-normalization-actions">
+          <input
+            className="parser-notice-input"
+            value={noticeNo}
+            onChange={(event) => setNoticeNo(event.target.value)}
+            placeholder="공고번호"
+            aria-label="공고번호"
+          />
+          <button type="button" onClick={runNotice} disabled={loading}>
+            <FileCheck2 size={16} />
+            신문서곡괭이 실행
+          </button>
+          <span className="parser-test-status">{status}</span>
+        </div>
+      </section>
+      <SettingsDatasetView
+        title="신문서곡괭이"
+        rows={rows}
+        search={search}
+        preferredColumns={preferredColumnsForSetting('newDocumentPickaxeRules')}
+        datasetId="newDocumentPickaxeRules"
+        dirtyLabel="신문서곡괭이"
+        onSaveRows={async (nextRows) => {
+          const saved = await onSaveSetting('newDocumentPickaxeRules', cleanRowsForSave(nextRows))
+          const savedWithResults = saved.map((row) => ({
+            ...row,
+            결과값: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['결과값']),
+          }))
+          setDraftRows(savedWithResults)
+          return savedWithResults
+        }}
+        onDirtyChange={onDirtyChange}
+        selectColumnOptions={{ 조건판단형태: typeOptions }}
+        columnHelpMap={{
+          항목: '서버공고/API 기준으로 받은 모든 표준 컬럼 항목입니다.',
+          조건판단형태: '이 항목 값을 뽑을 문서곡괭이 판단 방식입니다. 예: 1_2 금액, 3_2 별칭 키워드.',
+          검색키워드: '여러 줄은 OR입니다. 3_2는 (결과값:후보1/후보2) 형식으로 별칭을 줄 수 있습니다.',
+          제외키워드: '검색키워드가 잡혀도 같은 매칭 범위에 이 키워드가 있으면 결과를 버립니다.',
+          고정값: '3_1처럼 존재 여부만 볼 때 매칭되면 채울 값입니다. 비워두면 조건판단형태 기본값을 씁니다.',
+          결과값: '상단 공고번호로 실행했을 때 실제 추출된 값입니다. 저장 대상이 아닙니다.',
+        }}
+        onDraftRowsChange={setDraftRows}
+        controlledDraftRows={draftRows}
+      />
+    </div>
+  )
 }
 
 function splitGuideItems(value: unknown) {

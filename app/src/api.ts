@@ -96,6 +96,21 @@ export async function runDocumentPickaxeRuleTest(payload: { rule: NoticeRow; bod
   return data as ParserResult
 }
 
+export async function runDocumentPickaxeBatchTest(payload: { gongsanum: string; rows: NoticeRow[] }) {
+  const res = await fetch('/api/document-pickaxe/batch-test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const text = await res.text()
+  const data = text ? JSON.parse(text) : null
+  if (!res.ok) {
+    const message = data?.message || data?.error || `HTTP ${res.status}`
+    throw new Error(message)
+  }
+  return data as ParserResult & { testedRows?: number; textLength?: number }
+}
+
 export async function fetchQualification(detail: string, construction: string) {
   const params = new URLSearchParams({ 적격기준세부: detail, 건설: construction || '일반건설' })
   return getJson<NoticeRow[]>(`/api/qualification?${params.toString()}`)
