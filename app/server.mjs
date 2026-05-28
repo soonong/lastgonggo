@@ -887,7 +887,7 @@ function normalizeNoticeHtml(html) {
   const document = normalizeNoticeDocument(html)
   const lines = buildParserParagraphBlocks(document.hardBlocks)
   return {
-    text: lines.join(' ').replace(/\s+/g, ' ').trim(),
+    text: lines.map((block) => blockText(block)).join(' ').replace(/\s+/g, ' ').trim(),
     blocks: lines,
   }
 }
@@ -895,23 +895,40 @@ function normalizeNoticeHtml(html) {
 function buildParserParagraphBlocks(blocks) {
   const result = []
   let current = ''
+  let currentHasTable = false
   for (const block of blocks || []) {
     const text = String(block?.원문 || '').trim()
     if (!text) continue
+    if (/^\|+$/.test(text)) continue
     const startsParagraph = Boolean(block?.번호) || block?.유형 === '제목'
+    const hasTable = block?.유형 === '표후보' || text.includes('|') || isTableLikeBlock(text)
     if (startsParagraph) {
-      if (current) result.push(current)
+      if (current) result.push({ text: current, hasTable: currentHasTable })
       current = text
+      currentHasTable = hasTable
       continue
     }
     if (current) {
       current = `${current} ${text}`.replace(/\s+/g, ' ').trim()
+      currentHasTable = currentHasTable || hasTable
     } else {
-      result.push(text)
+      result.push({ text, hasTable })
     }
   }
-  if (current) result.push(current)
+  if (current) result.push({ text: current, hasTable: currentHasTable })
   return result
+}
+
+function isTableLikeBlock(text) {
+  const value = String(text || '').trim()
+  if (!value) return false
+  if (/\((?:원|VAT|부가가치세)/i.test(value)) return true
+  if (/^(재료비|노무비|경\s*비|합\s*계|구분|금액|비고)$/.test(value)) return true
+  return false
+}
+
+function blockText(block) {
+  return typeof block === 'string' ? block : String(block?.text || '')
 }
 
 function addParserField(fields, evidence, matches, match) {
@@ -968,7 +985,7 @@ function splitRuleTypes(value) {
 function extractByParserRule(text, blocks, rule, type) {
   if (type === '4_3') {
     const keywords = splitRuleKeywords(rule['검색키워드'])
-    const hit = keywords.length ? findFirstAvailableHit(text, blocks, keywords, splitRuleKeywords(rule['제외키워드']), Number(rule.gap) || 15) : null
+    const hit = keywords.length ? findFirstAvailableHit(text, blocks, keywords, splitRuleKeywords(rule['제외키워드']), Number(rule.gap) || 15, type) : null
     const context = hit?.sourceText || collectKeywordContext(text, keywords, Number(rule['문맥범위']) || 1300)
     const found = findJongmokCandidates(context)
     if (!found.length) return null
@@ -979,10 +996,14 @@ function extractByParserRule(text, blocks, rule, type) {
     }
   }
 
-  const hit = findFirstAvailableHit(text, blocks, splitRuleKeywords(rule['검색키워드']), splitRuleKeywords(rule['제외키워드']), Number(rule.gap) || 15)
+  const hit = findFirstAvailableHit(text, blocks, splitRuleKeywords(rule['검색키워드']), splitRuleKeywords(rule['제외키워드']), Number(rule.gap) || 15, type)
   if (!hit) return null
 
   const fixedValue = fixedValueForRule(rule, hit.matchedKeyword)
+  if (type === '6_1') {
+    const value = extractTableValue(hit.sourceText)
+    return value ? { value, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText } : null
+  }
   if (type === '3_1') {
     return { value: fixedValue || '1', matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText }
   }
@@ -1017,6 +1038,14 @@ function extractByParserRule(text, blocks, rule, type) {
   return null
 }
 
+function extractTableValue(sourceText) {
+  const text = String(sourceText || '')
+  const moneyValues = [...text.matchAll(/([\d,]{6,})\s*원?/g)].map((match) => match[1].replace(/,/g, ''))
+  if (!moneyValues.length) return ''
+  if (/합\s*계/.test(text)) return moneyValues[moneyValues.length - 1]
+  return moneyValues[0]
+}
+
 function pickMoneyValue(sourceText, rule) {
   const mode = String(rule['금액선택방식'] || '').trim()
   const moneyPattern = /([\d,]{6,})\s*원?/g
@@ -1028,10 +1057,11 @@ function pickMoneyValue(sourceText, rule) {
   return first ? first[1].replace(/,/g, '') : ''
 }
 
-function findFirstAvailableHit(text, blocks, keywords, excludeKeywords, gap = 15) {
+function findFirstAvailableHit(text, blocks, keywords, excludeKeywords, gap = 15, type = '') {
   for (const keyword of keywords) {
     const hit = findKeywordHit(text, blocks, keyword, gap)
     if (!hit) continue
+    if (!isHitAllowedByNormalizationScope(type, hit)) continue
     if (isHitExcluded(hit.sourceText, excludeKeywords)) continue
     return { ...hit, matchedKeyword: keyword }
   }
@@ -1136,13 +1166,15 @@ function findKeywordHit(text, blocks, keyword, gap = 15) {
 
   const regex = keywordToRegex(keyword, gap)
   for (const block of blocks) {
-    const match = block.match(regex)
+    const sourceText = blockText(block)
+    const match = sourceText.match(regex)
     if (match) {
       return {
-        index: text.indexOf(block),
-        sourceText: block,
+        index: text.indexOf(sourceText),
+        sourceText,
         matchedText: match[0],
         aliasLabel: '',
+        hasTable: Boolean(block?.hasTable),
       }
     }
   }
@@ -1153,6 +1185,43 @@ function findKeywordHit(text, blocks, keyword, gap = 15) {
     sourceText: sourceAround(text, match.index ?? 0, 360),
     matchedText: match[0],
     aliasLabel: '',
+    hasTable: false,
+  }
+}
+
+function isHitAllowedByNormalizationScope(type, hit) {
+  const scopes = parserTypeScopes().get(String(type || '').trim())
+  if (!scopes || !scopes.size) return true
+  const allowsTable = scopes.has('표')
+  const allowsParagraph = scopes.has('문단') || scopes.has('대섹션')
+  if (hit.hasTable && !allowsTable) return false
+  if (!hit.hasTable && !allowsParagraph && allowsTable) return false
+  return true
+}
+
+let parserTypeScopeCache = null
+let parserTypeScopeMtime = 0
+function parserTypeScopes() {
+  const filePath = path.join(paths.settingsDir, settingFiles.parserTypeGuide)
+  try {
+    const mtime = fs.statSync(filePath).mtimeMs
+    if (parserTypeScopeCache && parserTypeScopeMtime === mtime) return parserTypeScopeCache
+    const rows = readCsv(filePath)
+    const next = new Map()
+    for (const row of rows) {
+      const type = String(row['조건판단형태'] || '').trim()
+      if (!type) continue
+      const scopes = String(row['정규화범위'] || '')
+        .split(/[,/|]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+      next.set(type, new Set(scopes))
+    }
+    parserTypeScopeCache = next
+    parserTypeScopeMtime = mtime
+    return next
+  } catch {
+    return new Map()
   }
 }
 
