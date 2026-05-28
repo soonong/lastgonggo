@@ -150,6 +150,13 @@ function sendText(res, status, payload) {
   res.end(payload)
 }
 
+function safeDownloadName(value) {
+  const base = path.basename(String(value || 'export.csv'))
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_')
+  return base.toLowerCase().endsWith('.csv') ? base : `${base}.csv`
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = ''
@@ -1422,6 +1429,27 @@ const server = http.createServer(async (req, res) => {
         return
       }
       sendJson(res, 200, { rows: readCsv(paths.standardColumns) })
+      return
+    }
+
+    if (reqUrl.pathname === '/api/export-csv') {
+      if (req.method !== 'POST') {
+        sendJson(res, 405, { error: 'method_not_allowed' })
+        return
+      }
+      const body = await readBody(req)
+      const data = JSON.parse(body || '{}')
+      const filename = safeDownloadName(data.filename || `export_${Date.now()}.csv`)
+      const csv = String(data.csv || '')
+      if (!csv) {
+        sendJson(res, 400, { error: 'empty_csv', message: 'CSV 내용이 없습니다.' })
+        return
+      }
+      const downloadDir = path.join(process.env.USERPROFILE || process.env.HOME || repoRoot, 'Downloads')
+      fs.mkdirSync(downloadDir, { recursive: true })
+      const filePath = path.join(downloadDir, filename)
+      fs.writeFileSync(filePath, `\uFEFF${csv}`, 'utf8')
+      sendJson(res, 200, { ok: true, filename, path: filePath })
       return
     }
 

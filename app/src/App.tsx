@@ -38,6 +38,7 @@ import {
   fetchStandardColumnRules,
   runDocumentPickaxeBatchTest,
   runDocumentPickaxeRuleTest,
+  saveCsvExport,
   saveSettingsRows,
   saveStandardColumnRules,
 } from './api'
@@ -309,20 +310,26 @@ function exportWorkbook(rows: NoticeRow[], columns: string[], suffix: string) {
 }
 
 function exportCsv(rows: NoticeRow[], columns: string[], filename: string) {
-  const header = columns.map(escapeCsvCell).join(',')
-  const body = rows
-    .map((row) => columns.map((col) => escapeCsvCell(row[col] ?? '')).join(','))
-    .join('\r\n')
-  const csv = [header, body].filter(Boolean).join('\r\n')
+  const csv = buildCsvText(rows, columns)
+  const finalName = filename.endsWith('.csv') ? filename : `${filename}.csv`
   const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
+  anchor.download = finalName
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(url)
+  return { filename: finalName, csv }
+}
+
+function buildCsvText(rows: NoticeRow[], columns: string[]) {
+  const header = columns.map(escapeCsvCell).join(',')
+  const body = rows
+    .map((row) => columns.map((col) => escapeCsvCell(row[col] ?? '')).join(','))
+    .join('\r\n')
+  return [header, body].filter(Boolean).join('\r\n')
 }
 
 function escapeCsvCell(value: unknown) {
@@ -2283,11 +2290,17 @@ function SettingsDatasetView({
     setSaveStatus(`저장 완료: ${saved.length.toLocaleString()}행`)
   }
 
-  function downloadCsv() {
+  async function downloadCsv() {
     const exportRows = sourceRows.map((row) => stripSettingsMeta(row))
     const exportColumns = columnsForRows(exportRows, columns)
     const today = new Date().toISOString().slice(0, 10)
-    exportCsv(exportRows, exportColumns, `${today}_${safeFileName(title)}.csv`)
+    const { filename, csv } = exportCsv(exportRows, exportColumns, `${today}_${safeFileName(title)}.csv`)
+    try {
+      const saved = await saveCsvExport(filename, csv)
+      setSaveStatus(`내보내기 완료: ${saved.path}`)
+    } catch (error) {
+      setSaveStatus(`브라우저 다운로드를 요청했습니다. 서버 저장 실패: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   async function uploadCsv(event: ReactChangeEvent<HTMLInputElement>) {

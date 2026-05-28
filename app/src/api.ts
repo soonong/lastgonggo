@@ -56,6 +56,18 @@ export async function saveStandardColumnRules(rows: StandardColumnRule[]) {
   return (data.rows ?? rows) as StandardColumnRule[]
 }
 
+export async function saveCsvExport(filename: string, csv: string) {
+  const res = await fetch('/api/export-csv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, csv }),
+  })
+  const text = await res.text()
+  const data = text ? JSON.parse(text) : null
+  if (!res.ok) throw new Error(data?.message || data?.error || `HTTP ${res.status}`)
+  return data as { ok: boolean; path: string; filename: string }
+}
+
 export async function fetchLocalServerNotices(limit = 300) {
   const data = await getJson<ApiEnvelope<NoticeRow>>(`/api/local/server-notices?limit=${limit}`)
   return { rows: data.rows ?? [], source: data.source ?? 'local-sample' }
