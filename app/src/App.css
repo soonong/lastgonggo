@@ -989,6 +989,20 @@ tbody tr.selected-row td {
   outline: none;
 }
 
+.cell-editor-expandable {
+  cursor: text;
+}
+
+.cell-editor-expanded {
+  height: 220px;
+  min-height: 220px;
+  resize: vertical;
+  overflow: auto;
+  white-space: pre-wrap;
+  position: relative;
+  z-index: 4;
+}
+
 .cell-select {
   display: block;
   width: 100%;

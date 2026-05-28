@@ -2246,6 +2246,7 @@ function SettingsDatasetView({
         emptyText={`${title} 데이터가 없습니다.`}
         tableId={`settings:${datasetId ?? settingKey ?? title}`}
         editable={editable}
+        expandableTextColumns={datasetId === 'newDocumentPickaxeRules' ? ['검색키워드', '제외키워드', '근거본문'] : []}
         standardColumnMode={datasetId === 'standardColumns'}
         selectColumnOptions={selectColumnOptions}
         multiSelectColumnOptions={multiSelectColumnOptions}
@@ -3493,6 +3494,7 @@ function DataTable({
   selectColumnOptions = {},
   multiSelectColumnOptions = {},
   columnHelpMap = {},
+  expandableTextColumns = [],
   onCellChange,
   rowClassName,
 }: {
@@ -3506,6 +3508,7 @@ function DataTable({
   selectColumnOptions?: Record<string, string[]>
   multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
+  expandableTextColumns?: string[]
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
 }) {
@@ -3516,6 +3519,8 @@ function DataTable({
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const [sortState, setSortState] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
   const [openMultiCell, setOpenMultiCell] = useState<string | null>(null)
+  const [expandedTextCell, setExpandedTextCell] = useState<string | null>(null)
+  const expandableTextColumnSet = useMemo(() => new Set(expandableTextColumns), [expandableTextColumns])
 
   useEffect(() => {
     setColumnWidths(loadColumnWidthCache(widthStorageKey))
@@ -3665,6 +3670,8 @@ function DataTable({
                   const multiOptions = multiOptionsForColumn(col)
                   const cellKey = `${row.__settingsIndex ?? rowIndex}:${col}`
                   const selectedMultiValues = multiOptions ? multiValueParts(row[col]) : []
+                  const canExpandTextCell = editable && expandableTextColumnSet.has(col)
+                  const isExpandedTextCell = canExpandTextCell && expandedTextCell === cellKey
                   return (
                   <td
                     key={col}
@@ -3730,12 +3737,18 @@ function DataTable({
                       </select>
                     ) : editable ? (
                       <textarea
-                        className="cell-editor"
+                        className={['cell-editor', canExpandTextCell ? 'cell-editor-expandable' : '', isExpandedTextCell ? 'cell-editor-expanded' : ''].join(' ')}
                         value={valueToText(row[col])}
                         title={valueToText(row[col])}
-                        onClick={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (canExpandTextCell) setExpandedTextCell(cellKey)
+                        }}
+                        onFocus={() => {
+                          if (canExpandTextCell) setExpandedTextCell(cellKey)
+                        }}
                         onChange={(event) => onCellChange?.(row, col, event.target.value)}
-                        rows={2}
+                        rows={isExpandedTextCell ? 12 : 2}
                       />
                     ) : (
                       <span className="cell-text">{valueToText(row[col])}</span>
