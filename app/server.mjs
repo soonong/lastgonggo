@@ -922,7 +922,7 @@ function buildParserParagraphBlocks(blocks) {
 function isTableLikeBlock(text) {
   const value = String(text || '').trim()
   if (!value) return false
-  if (/\((?:원|VAT|부가가치세)/i.test(value)) return true
+  if (/\(\s*원(?:\s*,|\s*\))/i.test(value)) return true
   if (/^(재료비|노무비|경\s*비|합\s*계|구분|금액|비고)$/.test(value)) return true
   return false
 }
