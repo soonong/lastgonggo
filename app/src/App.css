@@ -2529,7 +2529,7 @@ td.status-오류 {
 .detail-right__content {
   min-height: 0;
   overflow: auto;
-  padding: 10px;
+  padding: 10px 10px 64px;
 }
 
 .detail-field {
@@ -2564,6 +2564,24 @@ td.status-오류 {
   background: #fff1e8;
   border-color: #f0a36f;
   box-shadow: inset 3px 0 0 #f97316;
+}
+
+.detail-savebar {
+  position: sticky;
+  bottom: -10px;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 12px -10px -64px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #d9e1eb;
+}
+
+.detail-savebar button {
+  height: 34px;
+  padding: 0 14px;
 }
 
 .region-issue-banner {

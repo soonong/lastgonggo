@@ -1023,6 +1023,22 @@ function App() {
     setLogs((prev) => [`${now} ${message}`, ...prev].slice(0, 80))
   }
 
+  function saveDetailRow(nextRow: NoticeRow) {
+    const gongo = valueToText(nextRow['공고번호'])
+    const updateRows = (rows: NoticeRow[]) =>
+      rows.map((row) => (gongo && valueToText(row['공고번호']) === gongo ? { ...row, ...nextRow } : row))
+    if (stage === 'collect') setRawRows(updateRows)
+    if (stage === 'preprocess') {
+      setPreRows(updateRows)
+      setHumanRows(updateRows)
+    }
+    if (stage === 'human') setHumanRows(updateRows)
+    if (stage === 'output') setFinalRows(updateRows)
+    setDetailRow(nextRow)
+    setStatus(`상세모달 저장: ${gongo || valueToText(nextRow['공사명']) || '선택 row'}`)
+    addLog(`상세모달 저장: ${gongo || valueToText(nextRow['공사명']) || '선택 row'}`)
+  }
+
   function renderStageActions() {
     if (stage === 'collect') {
       return (
@@ -1294,7 +1310,15 @@ function App() {
           ) : null}
         </aside>
       </section>
-      {detailRow ? <NoticeDetailModal row={detailRow} columns={columns} displayFormatMap={displayFormatMap} onClose={() => setDetailRow(null)} /> : null}
+      {detailRow ? (
+        <NoticeDetailModal
+          row={detailRow}
+          columns={columns}
+          displayFormatMap={displayFormatMap}
+          onSave={saveDetailRow}
+          onClose={() => setDetailRow(null)}
+        />
+      ) : null}
     </div>
   )
 
@@ -1650,7 +1674,16 @@ function HumanView({
             <span>{tableMeta}</span>
           </div>
         </div>
-        <DataTable columns={columns} rows={rows} emptyText="전처리 후 사람입력을 진행하세요." onRowClick={onRowOpen} tableId="main:human" displayFormatMap={displayFormatMap} />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          emptyText="전처리 후 사람입력을 진행하세요."
+          tableId="main:human"
+          displayFormatMap={displayFormatMap}
+          onCellDoubleClick={(row, col) => {
+            if (col === '공사명') onRowOpen(row)
+          }}
+        />
       </section>
     </>
   )
@@ -3705,6 +3738,7 @@ function DataTable({
   emptyText,
   tableId,
   onRowClick,
+  onCellDoubleClick,
   editable = false,
   standardColumnMode = false,
   selectColumnOptions = {},
@@ -3721,6 +3755,7 @@ function DataTable({
   emptyText: string
   tableId?: string
   onRowClick?: (row: NoticeRow) => void
+  onCellDoubleClick?: (row: NoticeRow, col: string) => void
   editable?: boolean
   standardColumnMode?: boolean
   selectColumnOptions?: Record<string, string[]>
@@ -3979,7 +4014,15 @@ function DataTable({
                         rows={isExpandedTextCell ? 12 : 2}
                       />
                     ) : (
-                      <span className="cell-text">{displayText}</span>
+                      <span
+                        className="cell-text"
+                        onDoubleClick={(event) => {
+                          event.stopPropagation()
+                          onCellDoubleClick?.(row, col)
+                        }}
+                      >
+                        {displayText}
+                      </span>
                     )}
                   </td>
                   )
@@ -3997,13 +4040,16 @@ function NoticeDetailModal({
   row,
   columns,
   displayFormatMap,
+  onSave,
   onClose,
 }: {
   row: NoticeRow
   columns: string[]
   displayFormatMap: Record<string, string>
+  onSave: (row: NoticeRow) => void
   onClose: () => void
 }) {
+  const [draftRow, setDraftRow] = useState<NoticeRow>(row)
   const [activeTab, setActiveTab] = useState('추가')
   const [activeLeftTab, setActiveLeftTab] = useState('공고문')
   const [docSearch, setDocSearch] = useState('')
@@ -4014,13 +4060,21 @@ function NoticeDetailModal({
   const [qualificationRows, setQualificationRows] = useState<NoticeRow[]>([])
   const [qualificationStatus, setQualificationStatus] = useState('')
   const tabs = ['추가', '종목', '기본', '기타', '첨부', '적격심사기준']
-  const detailKey = valueToText(row['적격평가기준_세부'])
-  const constructionType = valueToText(row['일반_기타_전문']) || '일반건설'
-  const gongsanum = valueToText(row['공고번호'])
-  const regionIssues = getRegionIssues(row)
-  const docText = buildDetailDocText(row)
+  const detailKey = valueToText(draftRow['적격평가기준_세부'])
+  const constructionType = valueToText(draftRow['일반_기타_전문']) || '일반건설'
+  const gongsanum = valueToText(draftRow['공고번호'])
+  const regionIssues = getRegionIssues(draftRow)
+  const docText = buildDetailDocText(draftRow)
   const highlightQuery = docSearch.trim() || activeHighlight.trim()
   const highlightCount = highlightQuery ? countMatches(docText, highlightQuery) : 0
+
+  useEffect(() => {
+    setDraftRow(row)
+  }, [row])
+
+  function changeDraftField(field: string, value: string) {
+    setDraftRow((prev) => ({ ...prev, [field]: value }))
+  }
 
   useEffect(() => {
     let alive = true
@@ -4045,7 +4099,7 @@ function NoticeDetailModal({
   useEffect(() => {
     let alive = true
     if (activeTab !== '첨부') return
-    const cached = parseAttachmentRows(row)
+    const cached = parseAttachmentRows(draftRow)
     if (cached.length) {
       setAttachments(cached)
       setAttachmentStatus(`row 첨부 ${cached.length.toLocaleString()}건`)
@@ -4071,7 +4125,7 @@ function NoticeDetailModal({
     return () => {
       alive = false
     }
-  }, [activeTab, gongsanum, row])
+  }, [activeTab, draftRow, gongsanum])
 
   const columnSet = new Set(columns)
   const fieldGroups: Record<string, string[]> = {
@@ -4084,8 +4138,8 @@ function NoticeDetailModal({
   }
   const visibleFields = (fieldGroups[activeTab] ?? [])
     .filter((field, index, list) => list.indexOf(field) === index)
-    .filter((field) => columnSet.has(field) || valueToText(row[field]))
-  const allFilled = columns.filter((col) => valueToText(row[col]).trim() !== '').length
+    .filter((field) => columnSet.has(field) || valueToText(draftRow[field]))
+  const allFilled = columns.filter((col) => valueToText(draftRow[col]).trim() !== '').length
 
   return (
     <div className="detail-modal" role="dialog" aria-modal="true" aria-label="공고 상세">
@@ -4093,10 +4147,10 @@ function NoticeDetailModal({
         <section className="detail-left">
           <header className="detail-header">
             <div>
-              <strong>{valueToText(row['공고번호']) || '공고번호 없음'}</strong>
-              <h2>{valueToText(row['공사명']) || '공사명 없음'}</h2>
+              <strong>{valueToText(draftRow['공고번호']) || '공고번호 없음'}</strong>
+              <h2>{valueToText(draftRow['공사명']) || '공사명 없음'}</h2>
               <p>
-                {valueToText(row['발주처']) || '발주처 없음'} · {valueToText(row['입력일']) || '입력일 없음'}
+                {valueToText(draftRow['발주처']) || '발주처 없음'} · {valueToText(draftRow['입력일']) || '입력일 없음'}
               </p>
             </div>
             <button type="button" onClick={onClose} aria-label="닫기">
@@ -4125,8 +4179,8 @@ function NoticeDetailModal({
               <FilePreviewTab file={fileTabs.find((file) => file.name === activeLeftTab)} />
             ) : highlightQuery ? (
               <HighlightedDocument text={docText} query={highlightQuery} />
-            ) : valueToText(row['공고본문_HTML']) ? (
-              <div className="notice-html" dangerouslySetInnerHTML={{ __html: valueToText(row['공고본문_HTML']) }} />
+            ) : valueToText(draftRow['공고본문_HTML']) ? (
+              <div className="notice-html" dangerouslySetInnerHTML={{ __html: valueToText(draftRow['공고본문_HTML']) }} />
             ) : (
               <>
                 <div className="doc-placeholder">
@@ -4137,19 +4191,19 @@ function NoticeDetailModal({
                 <dl>
                   <div>
                     <dt>공고본문</dt>
-                    <dd>{valueToText(row['공고본문']) || 'A3 문서곡괭이 실행 후 본문 미리보기가 표시됩니다.'}</dd>
+                    <dd>{valueToText(draftRow['공고본문']) || 'A3 문서곡괭이 실행 후 본문 미리보기가 표시됩니다.'}</dd>
                   </div>
                   <div>
                     <dt>참가자격</dt>
-                    <dd>{valueToText(row['참가자격']) || '아직 수집/파싱된 값 없음'}</dd>
+                    <dd>{valueToText(draftRow['참가자격']) || '아직 수집/파싱된 값 없음'}</dd>
                   </div>
                   <div>
                     <dt>지역제한</dt>
-                    <dd>{valueToText(row['지역제한']) || '빈값'}</dd>
+                    <dd>{valueToText(draftRow['지역제한']) || '빈값'}</dd>
                   </div>
                   <div>
                     <dt>종목</dt>
-                    <dd>{valueToText(row['종목']) || '빈값'}</dd>
+                    <dd>{valueToText(draftRow['종목']) || '빈값'}</dd>
                   </div>
                 </dl>
               </>
@@ -4191,14 +4245,15 @@ function NoticeDetailModal({
                 }}
               />
             ) : visibleFields.map((field) => (
-              <label key={field} className={detailFieldClass(row, field, regionIssues)}>
+              <label key={field} className={detailFieldClass(draftRow, field, regionIssues)}>
                 <span>{field}</span>
                 <textarea
-                  value={formatCellForDisplay(row[field], displayFormatMap[field])}
-                  readOnly
+                  value={valueToText(draftRow[field])}
+                  placeholder={formatCellForDisplay(draftRow[field], displayFormatMap[field])}
+                  onChange={(event) => changeDraftField(field, event.target.value)}
                   onFocus={() => {
                     setActiveLeftTab('공고문')
-                    setActiveHighlight(valueToText(row[field]) || field)
+                    setActiveHighlight(valueToText(draftRow[field]) || field)
                   }}
                 />
               </label>
@@ -4207,6 +4262,22 @@ function NoticeDetailModal({
               <QualificationPanel detailKey={detailKey} status={qualificationStatus} rows={qualificationRows} />
             ) : null}
             {activeTab !== '첨부' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
+            <div className="detail-savebar">
+              <button
+                className="primary"
+                type="button"
+                onClick={() => {
+                  onSave(draftRow)
+                  onClose()
+                }}
+              >
+                <Save size={16} />
+                저장 / 닫기
+              </button>
+              <button type="button" onClick={onClose}>
+                닫기
+              </button>
+            </div>
           </div>
         </section>
       </div>
