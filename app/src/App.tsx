@@ -1965,7 +1965,7 @@ function preferredColumnsForSetting(key: string) {
       '정책고정사유',
     ],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
-    newDocumentPickaxeRules: ['항목', '조건판단형태', '검색키워드', '제외키워드', '고정값', '금액선택방식', '결과값', '근거유형', '근거키워드', '근거본문'],
+    newDocumentPickaxeRules: ['항목', '조건판단형태', '검색키워드', '제외키워드', '고정값', '금액선택방식', '결과값', '근거키워드', '근거본문'],
     sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
     bidMethodSkip: ['id', '입찰방식', '메모'],
   }
@@ -2115,7 +2115,7 @@ function SettingsDatasetView({
   const pageStart = pageSize === 'all' ? 0 : (safePage - 1) * effectivePageSize
   const pageRows = pageSize === 'all' ? filtered : filtered.slice(pageStart, pageStart + effectivePageSize)
   const displayed = pageRows.map((row) => ({ ...row, __settingsIndex: sourceRows.indexOf(row) }))
-  const dirtyIgnoredColumns = datasetId === 'newDocumentPickaxeRules' ? ['결과값', '근거유형', '근거키워드', '근거본문'] : []
+  const dirtyIgnoredColumns = datasetId === 'newDocumentPickaxeRules' ? ['결과값', '근거키워드', '근거본문'] : []
   const isDirty = editable
     && JSON.stringify(draftRows.map((row) => stripSettingsMeta(row, dirtyIgnoredColumns)))
       !== JSON.stringify(rows.map((row) => stripSettingsMeta(row, dirtyIgnoredColumns)))
@@ -2551,7 +2551,6 @@ function NewDocumentPickaxeView({
         return {
           ...row,
           결과값: valueToText(fields[item]),
-          근거유형: valueToText(match?.type),
           근거키워드: valueToText(match?.matchedKeyword),
           근거본문: valueToText(match?.sourceText),
         }
@@ -2618,7 +2617,6 @@ function NewDocumentPickaxeView({
           const savedWithResults = saved.map((row) => ({
             ...row,
             결과값: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['결과값']),
-            근거유형: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['근거유형']),
             근거키워드: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['근거키워드']),
             근거본문: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['근거본문']),
           }))
@@ -2634,7 +2632,6 @@ function NewDocumentPickaxeView({
           고정값: '3_1처럼 존재 여부만 볼 때 매칭되면 채울 값입니다. 비워두면 조건판단형태 기본값을 씁니다.',
           금액선택방식: '1_2 금액에서만 씁니다. 예: 공사비_괄호안금액이면 공사비(추정가격): A원(B원) 형태에서 B를 선택합니다.',
           결과값: '상단 공고번호로 실행했을 때 실제 추출된 값입니다. 저장 대상이 아닙니다.',
-          근거유형: '결과값을 만든 조건판단형태입니다. 예: 1_2 금액, 3_2 별칭.',
           근거키워드: '본문에서 실제로 걸린 검색키워드입니다. 같은 값이 왜 나왔는지 볼 때 먼저 확인합니다.',
           근거본문: '매칭된 키워드 주변 원문입니다. 추정가격/추정금액처럼 충돌할 때 이 근거를 보고 제외키워드나 검색키워드를 조정합니다.',
         }}
