@@ -38,8 +38,7 @@ import {
   fetchServerColumnProfiles,
   fetchSettingsRows,
   fetchStandardColumnRules,
-  runParsermanRuleTest,
-  runParsermanTest,
+  runDocumentPickaxeRuleTest,
   saveSettingsRows,
   saveStandardColumnRules,
 } from './api'
@@ -175,7 +174,7 @@ function mergeParserFields(row: NoticeRow, result: ParserResult, rules: Standard
 
     const current = valueToText(next[field]).trim()
     const priority = rules.find((rule) => rule.항목 === field)?.우선순위 ?? ''
-    const parserFirst = priority.includes('문서곡괭이') || priority.includes('파서')
+    const parserFirst = priority.includes('문서곡괭이')
 
     if (!current || current === '0' || (parserFirst && !conservativeKeepApiColumns.has(field))) {
       next[field] = candidate
@@ -1896,22 +1895,6 @@ function SettingsContent({
   if (activeMenu === '발주처 변경') {
     return <SettingsDatasetView title="적격발주처 변경" rows={settings.orgMap ?? []} search={search} preferredColumns={['id', '발주처 키워드', '매핑 대상']} {...editableProps('orgMap')} />
   }
-  if (activeMenu === '문서곡괭이 룰') {
-    return (
-      <ParserRuleEditor rows={settings.parserRules ?? []} search={search} parserTypeGuide={settings.parserTypeGuide ?? []} onSave={(rows) => onSaveSetting('parserRules', rows)} />
-    )
-  }
-  if (activeMenu === '조건판단형태 가이드') {
-    return (
-      <ParserTypeGuideView rows={settings.parserTypeGuide ?? []} search={search} onSaveSetting={onSaveSetting} onDirtyChange={onDirtyChange} />
-    )
-  }
-  if (activeMenu === '샘플 공고 테스트') {
-    return <ParsermanTestView search={search} parserRules={settings.parserRules ?? []} />
-  }
-  if (activeMenu === '문서곡괭이 리포트') {
-    return <ParsermanReport settings={settings} search={search} />
-  }
   if (activeMenu === '오류 리포트') {
     return <SettingsErrorReport settings={settings} profiles={profiles} rules={rules} rowCounts={rowCounts} search={search} />
   }
@@ -2345,7 +2328,7 @@ function ParserRuleEditor({
     const nextRule = normalizeParserRuleRow({
       id: nextId,
       사용여부: 'true',
-      대상컬럼: '새파서컬럼',
+      대상컬럼: '새문서곡괭이컬럼',
       조건판단형태: '3_1',
       검색키워드: '새키워드',
       고정값: '1',
@@ -2375,7 +2358,7 @@ function ParserRuleEditor({
       return
     }
     try {
-      const result = await runParsermanRuleTest({ rule: draft, body })
+      const result = await runDocumentPickaxeRuleTest({ rule: draft, body })
       const actual = valueToText(result.fields?.[target]).trim()
       const expected = valueToText(draft.기대값).trim()
       const ok = expected ? normalizeCompare(actual) === normalizeCompare(expected) : Boolean(actual)
@@ -2825,131 +2808,6 @@ function ParserNormalizationView({ search }: { search: string }) {
       ) : null}
     </div>
   )
-}
-
-function ParsermanTestView({ search, parserRules }: { search: string; parserRules: NoticeRow[] }) {
-  const sampleBody = useMemo(() => buildParserSampleBody(parserRules), [parserRules])
-  const [gongsanum, setGongsanum] = useState('')
-  const [body, setBody] = useState(sampleBody)
-  const [result, setResult] = useState<ParserResult | null>(null)
-  const [status, setStatus] = useState('샘플 본문을 넣고 테스트를 실행하세요.')
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!body.trim() && sampleBody) setBody(sampleBody)
-  }, [body, sampleBody])
-
-  async function run(mode: 'body' | 'a3') {
-    setLoading(true)
-    setStatus(mode === 'a3' ? 'A3 파싱용공고문 호출 중...' : '붙여넣은 본문 파싱 중...')
-    try {
-      const next = await runParsermanTest(mode === 'a3' ? { gongsanum } : { body, gongsanum: gongsanum || 'SAMPLE' })
-      setResult(next)
-      setStatus(`문서곡괭이 완료: ${Object.keys(next.fields ?? {}).length.toLocaleString()}개 컬럼, 근거 ${(next.matches ?? []).length.toLocaleString()}건`)
-    } catch (error) {
-      setResult(null)
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fieldRows = result
-    ? Object.entries(result.fields ?? {})
-        .filter(([key]) => key !== '공고본문')
-        .map(([컬럼, 값]) => ({ 컬럼, 값, 근거수: (result.matches ?? []).filter((match) => match.column === 컬럼).length }))
-    : []
-  const evidenceRows = filterSettingRows(
-    (result?.matches ?? []).map((match, index) => ({
-      순번: index + 1,
-      컬럼: match.column,
-      값: match.value,
-      조건판단형태: match.type,
-      참조마스터: match.settingTable,
-      rule_id: match.ruleId,
-      matched_keyword: match.matchedKeyword,
-      source_text: match.sourceText,
-    })),
-    search,
-  )
-
-  return (
-    <div className="settings-stack">
-      <section className="parser-test-panel">
-        <div className="parser-test-grid">
-          <label>
-            <span>공고번호</span>
-            <input value={gongsanum} onChange={(event) => setGongsanum(event.target.value)} placeholder="예: R26BK01537599-000" />
-          </label>
-          <label className="parser-body-input">
-            <span>본문 테스트</span>
-            <textarea value={body} onChange={(event) => setBody(event.target.value)} />
-          </label>
-        </div>
-        <div className="panel-actions">
-          <button type="button" onClick={() => run('body')} disabled={loading || !body.trim()}>
-            <Play size={16} />
-            본문으로 테스트
-          </button>
-          <button type="button" onClick={() => run('a3')} disabled={loading || !gongsanum.trim()}>
-            <FileDown size={16} />
-            A3 공고번호 테스트
-          </button>
-          <span className="parser-test-status">{status}</span>
-        </div>
-      </section>
-      <SettingsDatasetView title="문서곡괭이 결과" rows={fieldRows} search={search} preferredColumns={['컬럼', '값', '근거수']} />
-      <SettingsDatasetView
-        title="문서곡괭이 근거"
-        rows={evidenceRows}
-        search={search}
-        preferredColumns={['순번', '컬럼', '값', '조건판단형태', '참조마스터', 'rule_id', 'matched_keyword', 'source_text']}
-      />
-    </div>
-  )
-}
-
-function buildParserSampleBody(parserRules: NoticeRow[]) {
-  return parserRules
-    .map((row) => valueToText(row['예시본문']).trim())
-    .filter(Boolean)
-    .slice(0, 8)
-    .join('\n')
-}
-
-function ParsermanReport({ settings, search }: { settings: Record<string, NoticeRow[]>; search: string }) {
-  const groups = [
-    { 구분: '공고확인', rows: settings.noticeTags ?? [] },
-    { 구분: '특수실적', rows: settings.specialRecords ?? [] },
-    { 구분: '특수실적_공통', rows: settings.specialCommon ?? [] },
-  ]
-  const rows = groups.map((group) => {
-    const autoRows = group.rows.filter((row) => valueToText(row['검색키워드']).trim())
-    const manualRows = group.rows.length - autoRows.length
-    const duplicated = duplicatedValues(group.rows, '결과값')
-    return {
-      구분: group.구분,
-      전체: group.rows.length,
-      자동파싱대상: autoRows.length,
-      사람입력대상: manualRows,
-      결과값중복: duplicated.length ? duplicated.join(', ') : '',
-      상태: duplicated.length ? '중복 확인 필요' : '정상',
-      메모: '검색키워드가 비어 있으면 자동 파싱하지 않고 사람이 입력합니다.',
-    }
-  })
-  return <SettingsDatasetView title="문서곡괭이 리포트" rows={rows} search={search} preferredColumns={['구분', '전체', '자동파싱대상', '사람입력대상', '결과값중복', '상태', '메모']} />
-}
-
-function duplicatedValues(rows: NoticeRow[], key: string) {
-  const counts = new Map<string, number>()
-  for (const row of rows) {
-    const value = valueToText(row[key]).trim()
-    if (!value) continue
-    counts.set(value, (counts.get(value) ?? 0) + 1)
-  }
-  return Array.from(counts.entries())
-    .filter(([, count]) => count > 1)
-    .map(([value]) => value)
 }
 
 function SettingsSummary({

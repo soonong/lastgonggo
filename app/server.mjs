@@ -376,7 +376,7 @@ function normalizeBidFiles(body) {
     .filter((row) => row.파일명 || row.URL)
 }
 
-async function parsermanTest(req, res) {
+async function documentPickaxeTest(req, res) {
   const raw = await readBody(req)
   const data = JSON.parse(raw || '{}')
   const gongsanum = String(data.gongsanum || data.공고번호 || 'SAMPLE').trim()
@@ -405,7 +405,7 @@ async function parsermanTest(req, res) {
   sendJson(res, 200, parseNoticeHtml(body, gongsanum))
 }
 
-async function parsermanRuleTest(req, res) {
+async function documentPickaxeRuleTest(req, res) {
   const raw = await readBody(req)
   const data = JSON.parse(raw || '{}')
   const rule = data.rule && typeof data.rule === 'object' ? data.rule : null
@@ -1177,13 +1177,13 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (reqUrl.pathname === '/api/parserman/test' && req.method === 'POST') {
-      await parsermanTest(req, res)
+    if (reqUrl.pathname === '/api/document-pickaxe/test' && req.method === 'POST') {
+      await documentPickaxeTest(req, res)
       return
     }
 
-    if (reqUrl.pathname === '/api/parserman/rule-test' && req.method === 'POST') {
-      await parsermanRuleTest(req, res)
+    if (reqUrl.pathname === '/api/document-pickaxe/rule-test' && req.method === 'POST') {
+      await documentPickaxeRuleTest(req, res)
       return
     }
 

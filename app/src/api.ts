@@ -81,23 +81,8 @@ export async function fetchBidFiles(gongsanum: string) {
   return data.rows ?? []
 }
 
-export async function runParsermanTest(payload: { gongsanum?: string; body?: string }) {
-  const res = await fetch('/api/parserman/test', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  const text = await res.text()
-  const data = text ? JSON.parse(text) : null
-  if (!res.ok) {
-    const message = data?.message || data?.error || `HTTP ${res.status}`
-    throw new Error(message)
-  }
-  return data as ParserResult
-}
-
-export async function runParsermanRuleTest(payload: { rule: NoticeRow; body?: string }) {
-  const res = await fetch('/api/parserman/rule-test', {
+export async function runDocumentPickaxeRuleTest(payload: { rule: NoticeRow; body?: string }) {
+  const res = await fetch('/api/document-pickaxe/rule-test', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
