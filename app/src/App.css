@@ -1875,7 +1875,6 @@ td.status-오류 {
   gap: 8px;
 }
 
-.parser-policy-panel,
 .parser-guide-intro,
 .parser-guide-shell,
 .parser-guide-policy {
@@ -1884,20 +1883,6 @@ td.status-오류 {
   border-radius: 4px;
 }
 
-.parser-policy-panel {
-  flex: 0 0 auto;
-  padding: 9px 10px;
-}
-
-.parser-policy-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 7px;
-}
-
-.parser-policy-head strong,
 .parser-guide-intro strong,
 .parser-guide-policy strong {
   color: #173f67;
@@ -1905,47 +1890,9 @@ td.status-오류 {
   font-weight: 900;
 }
 
-.parser-policy-head span,
 .parser-guide-intro span {
   color: #65778b;
   font-size: 12px;
-}
-
-.parser-policy-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-  gap: 8px;
-}
-
-.parser-policy-list label {
-  display: grid;
-  grid-template-columns: 18px auto;
-  grid-template-rows: auto auto;
-  gap: 2px 7px;
-  min-width: 0;
-  padding: 7px;
-  background: #f7f9fc;
-  border: 1px solid #e1e8f0;
-  border-radius: 4px;
-}
-
-.parser-policy-list input {
-  grid-row: 1 / 3;
-  width: 15px;
-  height: 15px;
-  margin: 1px 0 0;
-  accent-color: #2f66a2;
-}
-
-.parser-policy-list strong {
-  color: #263b51;
-  font-size: 12px;
-}
-
-.parser-policy-list span {
-  color: #697b8e;
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .parser-guide-intro {
@@ -2183,6 +2130,13 @@ td.status-오류 {
   font-size: 12px;
 }
 
+.parser-guide-toggle button.active {
+  color: #ffffff;
+  background: #2f66a2;
+  border-color: #2f66a2;
+  font-weight: 900;
+}
+
 .parser-guide-toggle.disabled {
   background: #fff8e9;
   border-color: #ecd49d;
@@ -2201,7 +2155,6 @@ td.status-오류 {
   line-height: 1.65;
 }
 
-.settings-shell-dark .parser-policy-panel,
 .settings-shell-dark .parser-guide-intro,
 .settings-shell-dark .parser-guide-shell,
 .settings-shell-dark .parser-guide-policy,
@@ -2215,7 +2168,6 @@ td.status-오류 {
 }
 
 .settings-shell-dark .parser-guide-nav,
-.settings-shell-dark .parser-policy-list label,
 .settings-shell-dark .parser-scope-grid label {
   background: #111827;
   border-color: #263344;

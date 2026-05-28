@@ -1970,6 +1970,9 @@ function preferredColumnsForSetting(key: string) {
       '결과예시',
       '주의',
       '토글비고',
+      '정책_공백무시',
+      '정책_단어경계',
+      '정책_제외검사',
     ],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
     sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
@@ -2057,6 +2060,7 @@ function SettingsDatasetView({
   multiSelectColumnOptions = {},
   columnHelpMap = {},
   onDraftRowsChange,
+  controlledDraftRows,
 }: {
   title: string
   rows: NoticeRow[]
@@ -2072,6 +2076,7 @@ function SettingsDatasetView({
   multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
   onDraftRowsChange?: (rows: NoticeRow[]) => void
+  controlledDraftRows?: NoticeRow[]
 }) {
   const editable = Boolean((settingKey && onSaveSetting) || onSaveRows)
   const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
@@ -2086,6 +2091,15 @@ function SettingsDatasetView({
     setSelectedIndex(null)
     onDraftRowsChange?.(rows)
   }, [rows])
+
+  useEffect(() => {
+    if (!controlledDraftRows) return
+    setDraftRows((prev) => {
+      const prevText = JSON.stringify(prev.map(stripSettingsMeta))
+      const nextText = JSON.stringify(controlledDraftRows.map(stripSettingsMeta))
+      return prevText === nextText ? prev : controlledDraftRows
+    })
+  }, [controlledDraftRows])
 
   useEffect(() => {
     setSaveStatus('')
@@ -2483,6 +2497,29 @@ function splitGuideItems(value: unknown) {
     .filter(Boolean)
 }
 
+const PARSER_POLICY_TOGGLES = [
+  {
+    key: 'whitespace',
+    label: '공백 무시',
+    column: '정책_공백무시',
+    desc: '본문과 키워드의 공백을 제거하고 비교합니다.',
+  },
+  {
+    key: 'wordBoundary',
+    label: '단어 경계',
+    column: '정책_단어경계',
+    desc: '키워드 앞뒤에 한글/영숫자가 붙은 부분매치를 막습니다.',
+  },
+  {
+    key: 'exclude',
+    label: 'exclude 검사',
+    column: '정책_제외검사',
+    desc: '제외키워드가 같은 검사 범위에 있으면 매칭을 버립니다.',
+  },
+]
+
+const POLICY_TOGGLE_VALUES = ['전역', 'ON', 'OFF'] as const
+
 function ParserTypeGuideView({
   rows,
   search,
@@ -2507,11 +2544,6 @@ function ParserTypeGuideView({
     return base.filter((row) => Object.values(row).some((value) => valueToText(value).toLowerCase().includes(needle)))
   }, [previewRows, search])
   const [activeType, setActiveType] = useState('')
-  const [policy, setPolicy] = useState({
-    whitespace: true,
-    wordBoundary: true,
-    exclude: true,
-  })
 
   useEffect(() => {
     if (!visibleRows.length) {
@@ -2525,8 +2557,8 @@ function ParserTypeGuideView({
 
   const active = visibleRows.find((row) => valueToText(row['조건판단형태']) === activeType) ?? visibleRows[0]
   const logic = splitGuideItems(active?.['판단로직'])
-  const policies = splitGuideItems(active?.['영향정책'])
   const disabledNote = valueToText(active?.['토글비고']).trim()
+  const isPolicyLocked = Boolean(disabledNote)
   const scopeRows = [
     ['정규화범위', valueToText(active?.['정규화범위'])],
     ['키워드매칭방식', valueToText(active?.['키워드매칭방식'])],
@@ -2535,6 +2567,20 @@ function ParserTypeGuideView({
     ['제외검사범위', valueToText(active?.['제외검사범위'])],
     ['근거저장단위', valueToText(active?.['근거저장단위'])],
   ].filter(([, value]) => value.trim())
+
+  function policyToggleValue(column: string) {
+    const value = valueToText(active?.[column]).trim()
+    if (value) return value
+    return isPolicyLocked ? '고정' : '전역'
+  }
+
+  function changePolicyToggle(column: string, value: string) {
+    if (!active || isPolicyLocked) return
+    const code = valueToText(active['조건판단형태'])
+    setPreviewRows((prev) =>
+      prev.map((row) => (valueToText(row['조건판단형태']) === code ? { ...row, [column]: value } : row)),
+    )
+  }
 
   return (
     <div className="parser-guide-view">
@@ -2556,43 +2602,8 @@ function ParserTypeGuideView({
         multiSelectColumnOptions={PARSER_TYPE_GUIDE_MULTI_OPTIONS}
         columnHelpMap={PARSER_TYPE_GUIDE_HELP}
         onDraftRowsChange={setPreviewRows}
+        controlledDraftRows={previewRows}
       />
-
-      <section className="parser-policy-panel">
-        <div className="parser-policy-head">
-          <strong>매칭 정책</strong>
-          <span>화면 기준 15개 조건판단형태</span>
-        </div>
-        <div className="parser-policy-list">
-          <label>
-            <input
-              type="checkbox"
-              checked={policy.whitespace}
-              onChange={(event) => setPolicy({ ...policy, whitespace: event.target.checked })}
-            />
-            <strong>공백 무시</strong>
-            <span>본문/키워드 공백 제거 후 매치. 예: 국민건강 보험료 ↔ 국민건강보험료</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={policy.wordBoundary}
-              onChange={(event) => setPolicy({ ...policy, wordBoundary: event.target.checked })}
-            />
-            <strong>단어 경계</strong>
-            <span>매치 영역 앞뒤에 한글/영숫자가 붙으면 비매치. 예: 국민건강 ↔ 국민건강보험료 차단</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={policy.exclude}
-              onChange={(event) => setPolicy({ ...policy, exclude: event.target.checked })}
-            />
-            <strong>exclude 검사</strong>
-            <span>제외키워드가 매치 주변에 있으면 해당 항목을 버립니다.</span>
-          </label>
-        </div>
-      </section>
 
       <section className="parser-guide-intro">
         <strong>문서곡괭이 조건판단형태 가이드</strong>
@@ -2645,17 +2656,6 @@ function ParserTypeGuideView({
                 </ol>
               </div>
 
-              <div className="parser-guide-section">
-                <strong>영향 받는 정책</strong>
-                <div className="parser-guide-chips">
-                  {policies.map((item) => (
-                    <span key={item} className={item.includes('OFF') || item.includes('미적용') ? 'off' : ''}>
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
               <div className="parser-guide-example">
                 <span>예시</span>
                 <p>{valueToText(active['예시본문'])}</p>
@@ -2673,12 +2673,19 @@ function ParserTypeGuideView({
                   <span>{disabledNote}</span>
                 ) : (
                   <div>
-                    {['공백 무시', '단어 경계', 'exclude'].map((label) => (
-                      <label key={label}>
-                        <span>{label}</span>
-                        <button type="button">전역</button>
-                        <button type="button">ON</button>
-                        <button type="button">OFF</button>
+                    {PARSER_POLICY_TOGGLES.map((item) => (
+                      <label key={item.key} title={item.desc}>
+                        <span>{item.label}</span>
+                        {POLICY_TOGGLE_VALUES.map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={policyToggleValue(item.column) === value ? 'active' : ''}
+                            onClick={() => changePolicyToggle(item.column, value)}
+                          >
+                            {value}
+                          </button>
+                        ))}
                       </label>
                     ))}
                   </div>
@@ -3163,6 +3170,9 @@ const PARSER_TYPE_GUIDE_OPTIONS: Record<string, string[]> = {
   제외검사범위: ['', '같은 문단', '같은 표', '같은 대섹션', '전체본문', '같은 문단 또는 같은 표', '같은 문단 또는 같은 대섹션', '매칭 구간 포함 같은 문단', '매칭 문단 또는 같은 대섹션'],
   근거저장단위: ['', '매칭 원문줄', '매칭 문단', '매칭 문단 목록', '매칭 문단/표 셀', '문단 또는 대섹션', '표번호+행열', '종료점 위치'],
   토글비고: ['', '이 타입은 코드 정책이 고정되어 개별 토글을 사용하지 않습니다.', '이 타입은 의도적 부분매칭이라 개별 정책 토글을 사용하지 않습니다.'],
+  정책_공백무시: ['전역', 'ON', 'OFF', '고정'],
+  정책_단어경계: ['전역', 'ON', 'OFF', '고정'],
+  정책_제외검사: ['전역', 'ON', 'OFF', '고정'],
 }
 
 const PARSER_TYPE_GUIDE_MULTI_OPTIONS: Record<string, string[]> = {
@@ -3185,6 +3195,9 @@ const PARSER_TYPE_GUIDE_HELP: Record<string, string> = {
   근거저장단위: '검수 화면에 저장하고 보여줄 원문 근거 단위입니다.',
   판단로직: '문서곡괭이가 이 타입을 실행하는 순서입니다. 여러 단계는 | 로 구분합니다.',
   영향정책: '공백 무시, 단어 경계, exclude 같은 매칭 정책 중 이 타입에 영향을 주는 항목입니다.',
+  정책_공백무시: '이 조건판단형태에서 공백 무시 정책을 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
+  정책_단어경계: '이 조건판단형태에서 단어 경계 정책을 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
+  정책_제외검사: '이 조건판단형태에서 제외키워드 검사를 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
   예시본문: '이 조건판단형태를 검증할 수 있는 짧은 예시 본문입니다.',
   결과예시: '예시본문에서 기대하는 추출 결과입니다.',
   주의: '오탐, 누락, 제외키워드 필요성 등 운영자가 알아야 할 함정입니다.',
