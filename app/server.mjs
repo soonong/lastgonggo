@@ -885,11 +885,33 @@ function cleanNewDocumentPickaxeRows(rows) {
 
 function normalizeNoticeHtml(html) {
   const document = normalizeNoticeDocument(html)
-  const lines = document.softBlocks
+  const lines = buildParserParagraphBlocks(document.hardBlocks)
   return {
     text: lines.join(' ').replace(/\s+/g, ' ').trim(),
     blocks: lines,
   }
+}
+
+function buildParserParagraphBlocks(blocks) {
+  const result = []
+  let current = ''
+  for (const block of blocks || []) {
+    const text = String(block?.원문 || '').trim()
+    if (!text) continue
+    const startsParagraph = Boolean(block?.번호) || block?.유형 === '제목'
+    if (startsParagraph) {
+      if (current) result.push(current)
+      current = text
+      continue
+    }
+    if (current) {
+      current = `${current} ${text}`.replace(/\s+/g, ' ').trim()
+    } else {
+      result.push(text)
+    }
+  }
+  if (current) result.push(current)
+  return result
 }
 
 function addParserField(fields, evidence, matches, match) {
