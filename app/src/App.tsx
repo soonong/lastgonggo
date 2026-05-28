@@ -2646,7 +2646,8 @@ function formatNewPickaxeResult(row: NoticeRow, value: unknown) {
   const text = valueToText(value).trim()
   if (!text) return ''
   const types = splitRuleTypesForDisplay(row['조건판단형태'])
-  if (!types.includes('1_2')) return text
+  const shouldFormatMoney = types.some((type) => type === '1_2' || type === '6_1')
+  if (!shouldFormatMoney) return text
   return text
     .split('/')
     .map((part) => {
