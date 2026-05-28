@@ -2056,6 +2056,7 @@ function SettingsDatasetView({
   selectColumnOptions = {},
   multiSelectColumnOptions = {},
   columnHelpMap = {},
+  onDraftRowsChange,
 }: {
   title: string
   rows: NoticeRow[]
@@ -2070,6 +2071,7 @@ function SettingsDatasetView({
   selectColumnOptions?: Record<string, string[]>
   multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
+  onDraftRowsChange?: (rows: NoticeRow[]) => void
 }) {
   const editable = Boolean((settingKey && onSaveSetting) || onSaveRows)
   const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
@@ -2082,6 +2084,7 @@ function SettingsDatasetView({
   useEffect(() => {
     setDraftRows(rows)
     setSelectedIndex(null)
+    onDraftRowsChange?.(rows)
   }, [rows])
 
   useEffect(() => {
@@ -2111,7 +2114,11 @@ function SettingsDatasetView({
   function changeCell(row: NoticeRow, col: string, value: string) {
     const index = Number(row.__settingsIndex)
     if (!Number.isFinite(index) || index < 0) return
-    setDraftRows((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, [col]: value } : item)))
+    setDraftRows((prev) => {
+      const next = prev.map((item, itemIndex) => (itemIndex === index ? { ...item, [col]: value } : item))
+      onDraftRowsChange?.(next)
+      return next
+    })
     setSaveStatus('변경됨. 저장을 누르면 파일에 반영됩니다.')
   }
 
@@ -2121,14 +2128,22 @@ function SettingsDatasetView({
       acc[col] = col === 'id' ? nextId : ''
       return acc
     }, {})
-    setDraftRows((prev) => [...prev, nextRow])
+    setDraftRows((prev) => {
+      const next = [...prev, nextRow]
+      onDraftRowsChange?.(next)
+      return next
+    })
     setSelectedIndex(draftRows.length)
     setSaveStatus(`새 행 추가: ${nextId}`)
   }
 
   function deleteSelected() {
     if (selectedIndex === null) return
-    setDraftRows((prev) => prev.filter((_, index) => index !== selectedIndex))
+    setDraftRows((prev) => {
+      const next = prev.filter((_, index) => index !== selectedIndex)
+      onDraftRowsChange?.(next)
+      return next
+    })
     setSelectedIndex(null)
     setSaveStatus('선택 행 삭제됨. 저장을 눌러야 파일에 반영됩니다.')
   }
@@ -2138,6 +2153,7 @@ function SettingsDatasetView({
     const cleanRows = draftRows.map(stripSettingsMeta)
     const saved = onSaveRows ? await onSaveRows(cleanRows) : await onSaveSetting!(settingKey!, cleanRows)
     setDraftRows(saved)
+    onDraftRowsChange?.(saved)
     setSaveStatus(`저장 완료: ${saved.length.toLocaleString()}행`)
   }
 
@@ -2155,6 +2171,7 @@ function SettingsDatasetView({
     const text = await file.text()
     const uploadedRows = parseCsvUpload(text)
     setDraftRows(uploadedRows)
+    onDraftRowsChange?.(uploadedRows)
     setSelectedIndex(null)
     setSaveStatus(`가져오기: ${uploadedRows.length.toLocaleString()}행. 저장을 누르면 파일에 반영됩니다.`)
   }
@@ -2162,6 +2179,7 @@ function SettingsDatasetView({
   function resetRows() {
     setDraftRows(rows)
     setSelectedIndex(null)
+    onDraftRowsChange?.(rows)
     setSaveStatus('원본으로 되돌림')
   }
 
@@ -2476,12 +2494,18 @@ function ParserTypeGuideView({
   onSaveSetting: (key: string, rows: NoticeRow[]) => Promise<NoticeRow[]>
   onDirtyChange?: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
 }) {
+  const [previewRows, setPreviewRows] = useState<NoticeRow[]>(rows)
+
+  useEffect(() => {
+    setPreviewRows(rows)
+  }, [rows])
+
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    const base = rows.filter((row) => valueToText(row['조건판단형태']).trim())
+    const base = previewRows.filter((row) => valueToText(row['조건판단형태']).trim())
     if (!needle) return base
     return base.filter((row) => Object.values(row).some((value) => valueToText(value).toLowerCase().includes(needle)))
-  }, [rows, search])
+  }, [previewRows, search])
   const [activeType, setActiveType] = useState('')
   const [policy, setPolicy] = useState({
     whitespace: true,
@@ -2514,6 +2538,26 @@ function ParserTypeGuideView({
 
   return (
     <div className="parser-guide-view">
+      <SettingsDatasetView
+        title="조건판단형태 범위 표"
+        rows={rows}
+        search={search}
+        preferredColumns={preferredColumnsForSetting('parserTypeGuide')}
+        datasetId="parserTypeGuide"
+        dirtyLabel="조건판단형태 가이드"
+        settingKey="parserTypeGuide"
+        onSaveSetting={async (key, nextRows) => {
+          const saved = await onSaveSetting(key, nextRows)
+          setPreviewRows(saved)
+          return saved
+        }}
+        onDirtyChange={onDirtyChange}
+        selectColumnOptions={PARSER_TYPE_GUIDE_OPTIONS}
+        multiSelectColumnOptions={PARSER_TYPE_GUIDE_MULTI_OPTIONS}
+        columnHelpMap={PARSER_TYPE_GUIDE_HELP}
+        onDraftRowsChange={setPreviewRows}
+      />
+
       <section className="parser-policy-panel">
         <div className="parser-policy-head">
           <strong>매칭 정책</strong>
@@ -2658,20 +2702,6 @@ function ParserTypeGuideView({
         </ul>
       </section>
 
-      <SettingsDatasetView
-        title="조건판단형태 범위 표"
-        rows={rows}
-        search={search}
-        preferredColumns={preferredColumnsForSetting('parserTypeGuide')}
-        datasetId="parserTypeGuide"
-        dirtyLabel="조건판단형태 가이드"
-        settingKey="parserTypeGuide"
-        onSaveSetting={onSaveSetting}
-        onDirtyChange={onDirtyChange}
-        selectColumnOptions={PARSER_TYPE_GUIDE_OPTIONS}
-        multiSelectColumnOptions={PARSER_TYPE_GUIDE_MULTI_OPTIONS}
-        columnHelpMap={PARSER_TYPE_GUIDE_HELP}
-      />
     </div>
   )
 }
