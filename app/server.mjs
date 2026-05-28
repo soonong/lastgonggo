@@ -853,6 +853,8 @@ function readNewDocumentPickaxeRows() {
       고정값: String(existing?.['고정값'] || ''),
       금액선택방식: String(existing?.['금액선택방식'] || ''),
       결과값: '',
+      근거키워드: '',
+      근거본문: '',
     })
     seen.add(item)
   }
@@ -867,6 +869,8 @@ function readNewDocumentPickaxeRows() {
       고정값: String(row['고정값'] || ''),
       금액선택방식: String(row['금액선택방식'] || ''),
       결과값: '',
+      근거키워드: '',
+      근거본문: '',
     })
   }
   return rows
