@@ -1956,23 +1956,17 @@ function preferredColumnsForSetting(key: string) {
     parserTypeGuide: [
       '조건판단형태',
       '이름',
-      '용도',
       '출력',
       '정규화범위',
       '키워드매칭방식',
       '우선섹션분류',
-      'fallback범위',
       '제외검사범위',
       '근거저장단위',
-      '판단로직',
-      '영향정책',
-      '예시본문',
-      '결과예시',
-      '주의',
-      '토글비고',
+      '동작특성',
       '정책_공백무시',
       '정책_단어경계',
       '정책_제외검사',
+      '정책고정사유',
     ],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
     sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
@@ -2115,6 +2109,7 @@ function SettingsDatasetView({
   const columns = baseColumns.filter((col) => {
     if (SETTINGS_DEFAULT_HIDDEN_COLUMNS.has(col)) return false
     if (datasetId === 'standardColumns' && STANDARD_COLUMNS_DEFAULT_HIDDEN.has(col)) return false
+    if (datasetId === 'parserTypeGuide' && PARSER_TYPE_GUIDE_TABLE_HIDDEN.has(col)) return false
     return true
   })
   const effectivePageSize = pageSize === 'all' ? Math.max(filtered.length, 1) : pageSize
@@ -2557,15 +2552,15 @@ function ParserTypeGuideView({
 
   const active = visibleRows.find((row) => valueToText(row['조건판단형태']) === activeType) ?? visibleRows[0]
   const logic = splitGuideItems(active?.['판단로직'])
-  const disabledNote = valueToText(active?.['토글비고']).trim()
+  const disabledNote = valueToText(active?.['정책고정사유']).trim()
   const isPolicyLocked = Boolean(disabledNote)
   const scopeRows = [
     ['정규화범위', valueToText(active?.['정규화범위'])],
     ['키워드매칭방식', valueToText(active?.['키워드매칭방식'])],
     ['우선섹션분류', valueToText(active?.['우선섹션분류'])],
-    ['fallback범위', valueToText(active?.['fallback범위'])],
     ['제외검사범위', valueToText(active?.['제외검사범위'])],
     ['근거저장단위', valueToText(active?.['근거저장단위'])],
+    ['동작특성', valueToText(active?.['동작특성'])],
   ].filter(([, value]) => value.trim())
 
   function policyToggleValue(column: string) {
@@ -3162,6 +3157,7 @@ const COLUMN_HELP: Record<string, string> = {
 const CHECKBOX_COLUMNS = new Set(['공고관리 표시', '상세정보입력'])
 const STANDARD_COLUMNS_DEFAULT_HIDDEN = new Set(['서버공고일치', '확정메모'])
 const SETTINGS_DEFAULT_HIDDEN_COLUMNS = new Set(['id', 'ID'])
+const PARSER_TYPE_GUIDE_TABLE_HIDDEN = new Set(['용도', '판단로직', '예시본문', '결과예시', '주의'])
 const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
   처리방법: ['', '계산', '수집', '둘다'],
   우선순위: ['', '서버정보', '문서곡괭이'],
@@ -3169,10 +3165,9 @@ const SELECT_COLUMN_OPTIONS: Record<string, string[]> = {
 
 const PARSER_TYPE_GUIDE_OPTIONS: Record<string, string[]> = {
   출력: ['', '날짜', '정수 원', '전화번호', 'N%', '텍스트', '매칭 텍스트', '문단 텍스트', '고정값', '매칭 키워드 또는 별칭 라벨', '종목 배열', '지역 배열', '제어용', '정수 원 또는 표 값', '결과값 목록'],
-  fallback범위: ['', '없음', '같은 문단', '같은 대섹션', '같은 대섹션 -> 전체본문', '표 -> 같은 대섹션 -> 전체본문', '전체본문'],
   제외검사범위: ['', '같은 문단', '같은 표', '같은 대섹션', '전체본문', '같은 문단 또는 같은 표', '같은 문단 또는 같은 대섹션', '매칭 구간 포함 같은 문단', '매칭 문단 또는 같은 대섹션'],
   근거저장단위: ['', '매칭 원문줄', '매칭 문단', '매칭 문단 목록', '매칭 문단/표 셀', '문단 또는 대섹션', '표번호+행열', '종료점 위치'],
-  토글비고: ['', '이 타입은 코드 정책이 고정되어 개별 토글을 사용하지 않습니다.', '이 타입은 의도적 부분매칭이라 개별 정책 토글을 사용하지 않습니다.'],
+  정책고정사유: ['', '이 타입은 코드 정책이 고정되어 개별 토글을 사용하지 않습니다.', '이 타입은 의도적 부분매칭이라 개별 정책 토글을 사용하지 않습니다.'],
   정책_공백무시: ['전역', 'ON', 'OFF', '고정'],
   정책_단어경계: ['전역', 'ON', 'OFF', '고정'],
   정책_제외검사: ['전역', 'ON', 'OFF', '고정'],
@@ -3182,7 +3177,7 @@ const PARSER_TYPE_GUIDE_MULTI_OPTIONS: Record<string, string[]> = {
   정규화범위: ['원문줄', '문단', '표', '대섹션', '전체본문'],
   키워드매칭방식: ['키워드일치', '키워드포함', '키워드 앞뒤 와일드카드', '조사 포함 허용', '별칭후보', '헤더·라벨 매칭', '마스터 교집합', '지역마스터 교집합'],
   우선섹션분류: ['입찰일정', '금액정보', '문의처', '공동계약', '입찰참가자격', '낙찰방법', '계약방식', '지역제한', '안전보건', '기타사항'],
-  영향정책: ['공백 무시', '단어 경계', '단어 경계 강제 OFF', 'exclude', '다중 블록', '정책 미적용', '정규화 매치', '와일드카드', '사전 필터'],
+  동작특성: ['단어 경계 강제 OFF', '다중 블록', '정책 미적용', '정규화 매치', '와일드카드', '사전 필터', '마스터 교집합', '지역마스터 교집합', '표파싱'],
 }
 
 const PARSER_TYPE_GUIDE_HELP: Record<string, string> = {
@@ -3193,18 +3188,17 @@ const PARSER_TYPE_GUIDE_HELP: Record<string, string> = {
   정규화범위: '문서 정규화 결과 중 어디를 우선 검색할지 정합니다. 예: 문단, 대섹션, 표.',
   키워드매칭방식: '검색키워드를 인정하는 방식입니다. 명확한 값은 일치 우선, 흔들리는 표현은 포함/와일드카드를 씁니다.',
   우선섹션분류: '섹션설정으로 분류된 공고문 섹션 중 먼저 볼 범위입니다. 비우면 특정 섹션으로 좁히지 않습니다.',
-  fallback범위: '우선 범위에서 못 찾았을 때 검색 범위를 어디까지 넓힐지 정합니다.',
   제외검사범위: '검색키워드를 찾은 뒤 제외키워드를 비교할 원문 범위입니다.',
   근거저장단위: '검수 화면에 저장하고 보여줄 원문 근거 단위입니다.',
   판단로직: '문서곡괭이가 이 타입을 실행하는 순서입니다. 여러 단계는 | 로 구분합니다.',
-  영향정책: '공백 무시, 단어 경계, exclude 같은 매칭 정책 중 이 타입에 영향을 주는 항목입니다.',
+  동작특성: '토글 정책이 아니라 이 조건판단형태 자체가 가진 동작 특징입니다. 예: 와일드카드, 다중 블록, 마스터 교집합.',
   정책_공백무시: '이 조건판단형태에서 공백 무시 정책을 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
   정책_단어경계: '이 조건판단형태에서 단어 경계 정책을 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
   정책_제외검사: '이 조건판단형태에서 제외키워드 검사를 전역값으로 둘지, 강제로 켜거나 끌지 정합니다.',
   예시본문: '이 조건판단형태를 검증할 수 있는 짧은 예시 본문입니다.',
   결과예시: '예시본문에서 기대하는 추출 결과입니다.',
   주의: '오탐, 누락, 제외키워드 필요성 등 운영자가 알아야 할 함정입니다.',
-  토글비고: '정책 토글을 쓸 수 없는 타입이거나 별도 주의가 있을 때 적습니다.',
+  정책고정사유: '정책 토글을 쓸 수 없는 타입이거나 코드에서 고정된 이유가 있을 때 적습니다.',
 }
 
 function displayColumnName(col: string) {
