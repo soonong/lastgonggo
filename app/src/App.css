@@ -799,6 +799,16 @@ td {
   vertical-align: top;
 }
 
+td.multi-cell {
+  position: relative;
+  overflow: visible;
+  z-index: 3;
+}
+
+td.multi-cell:has(.cell-multi-popover) {
+  z-index: 60;
+}
+
 th {
   position: sticky;
   top: 0;

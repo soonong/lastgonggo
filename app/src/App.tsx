@@ -3559,6 +3559,7 @@ function DataTable({
                     key={col}
                     className={[
                     colIndex === 0 ? 'sticky-col' : '',
+                    multiOptions ? 'multi-cell' : '',
                     valueToText(row[col]).trim() === '' ? 'empty-cell' : '',
                     col === '검증상태' ? `status-${valueToText(row[col])}` : '',
                   ].join(' ')}
