@@ -665,8 +665,7 @@ textarea:focus {
 .table-section,
 .pipeline-panel,
 .output-panel,
-.editor-panel,
-.jongmok-review-panel {
+.editor-panel {
   display: flex;
   min-height: 0;
   flex-direction: column;
@@ -674,51 +673,6 @@ textarea:focus {
   background: #ffffff;
   border: 1px solid #d9e1eb;
   border-radius: 4px;
-}
-
-.jongmok-review-panel {
-  margin-bottom: 8px;
-}
-
-.jongmok-chip-list {
-  display: flex;
-  gap: 6px;
-  min-height: 42px;
-  padding: 8px;
-  overflow-x: auto;
-}
-
-.jongmok-chip-list button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 9px;
-  white-space: nowrap;
-  color: #24384d;
-  background: #ffffff;
-  border: 1px solid #cfd9e5;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.jongmok-chip-list button.active {
-  color: #17446f;
-  background: #e8f2fc;
-  border-color: #9ec3e6;
-}
-
-.jongmok-chip-list span {
-  color: #66788d;
-  font-size: 11px;
-}
-
-.jongmok-chip-list b {
-  padding: 2px 5px;
-  color: #17613a;
-  background: #e7f5ed;
-  border-radius: 999px;
-  font-size: 10px;
 }
 
 .section-head {

@@ -181,6 +181,28 @@ function isHumanReviewCandidate(row: NoticeRow, targetJongmok: string, finalGong
   return tokens.includes(targetJongmok)
 }
 
+function buildHumanJongmokOptions(rows: NoticeRow[], finalGongoSet: Set<string>) {
+  const map = new Map<string, { value: string; count: number; moved: number }>()
+  for (const row of rows) {
+    const gongo = valueToText(row['공고번호'])
+    const moved = Boolean(gongo && finalGongoSet.has(gongo))
+    const tokens = rowJongmokTokens(row)
+    const names = tokens.length ? tokens : ['종목 미확인']
+    for (const value of names) {
+      const item = map.get(value) ?? { value, count: 0, moved: 0 }
+      if (moved) item.moved += 1
+      else item.count += 1
+      map.set(value, item)
+    }
+  }
+  return Array.from(map.values())
+    .sort((a, b) => b.count - a.count || b.moved - a.moved || a.value.localeCompare(b.value, 'ko'))
+    .map((item) => ({
+      value: item.value,
+      label: `${item.value} ${item.count.toLocaleString()}건${item.moved ? (item.count === 0 ? ' · 이관완료' : ` · ${item.moved.toLocaleString()}건 이관`) : ''}`,
+    }))
+}
+
 function buildDisplayFormatMap(rules: StandardColumnRule[]) {
   const map: Record<string, string> = {}
   for (const rule of rules) {
@@ -605,11 +627,17 @@ function App() {
     [finalGongoSet, humanRows, jongmokFilter],
   )
   const jongmokOptions = useMemo(() => {
+    if (stage === 'human') return buildHumanJongmokOptions(humanRows, finalGongoSet)
     const values = (settingRows.jongmokMap ?? [])
       .map((row) => valueToText(row['업종']).trim())
       .filter(Boolean)
-    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, 'ko'))
-  }, [settingRows.jongmokMap])
+    return Array.from(new Set(values))
+      .sort((a, b) => a.localeCompare(b, 'ko'))
+      .map((value) => ({ value, label: value }))
+  }, [finalGongoSet, humanRows, settingRows.jongmokMap, stage])
+  const emptyJongmokLabel = stage === 'human'
+    ? `미완료 전체 ${humanRows.filter((row) => isHumanReviewCandidate(row, '', finalGongoSet)).length.toLocaleString()}건`
+    : '종목 선택'
 
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -1119,7 +1147,6 @@ function App() {
         <HumanView
           columns={columns}
           rows={visibleRows}
-          allRows={humanRows}
           selectedGongo={selectedGongo}
           setSelectedGongo={setSelectedGongo}
           draft={draft}
@@ -1129,9 +1156,6 @@ function App() {
           onA3Parse={runA3ParserForSelected}
           parserNote={parserNote}
           loading={loading}
-          activeJongmok={jongmokFilter}
-          setActiveJongmok={setJongmokFilter}
-          finalGongoSet={finalGongoSet}
           tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
           displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
@@ -1219,10 +1243,10 @@ function App() {
                 onChange={(event) => setJongmokFilter(event.target.value)}
                 onInput={(event) => setJongmokFilter(event.currentTarget.value)}
               >
-                <option value="">종목 선택</option>
+                <option value="">{emptyJongmokLabel}</option>
                 {jongmokOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+                  <option key={item.value} value={item.value}>
+                    {item.label}
                   </option>
                 ))}
               </select>
@@ -1539,7 +1563,6 @@ function PreprocessView({
 function HumanView({
   columns,
   rows,
-  allRows,
   selectedGongo,
   setSelectedGongo,
   draft,
@@ -1549,16 +1572,12 @@ function HumanView({
   onA3Parse,
   parserNote,
   loading,
-  activeJongmok,
-  setActiveJongmok,
-  finalGongoSet,
   tableMeta,
   displayFormatMap,
   onRowOpen,
 }: {
   columns: string[]
   rows: NoticeRow[]
-  allRows: NoticeRow[]
   selectedGongo: string
   setSelectedGongo: (value: string) => void
   draft: Record<string, string>
@@ -1568,59 +1587,12 @@ function HumanView({
   onA3Parse: () => void
   parserNote: string
   loading: boolean
-  activeJongmok: string
-  setActiveJongmok: (value: string) => void
-  finalGongoSet: Set<string>
   tableMeta: string
   displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
 }) {
-  const jongmokGroups = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; moved: number }>()
-    for (const row of allRows) {
-      const gongo = valueToText(row['공고번호'])
-      const moved = Boolean(gongo && finalGongoSet.has(gongo))
-      const tokens = rowJongmokTokens(row)
-      const names = tokens.length ? tokens : ['종목 미확인']
-      for (const name of names) {
-        const item = map.get(name) ?? { name, count: 0, moved: 0 }
-        if (moved) item.moved += 1
-        else item.count += 1
-        map.set(name, item)
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => b.count - a.count || b.moved - a.moved || a.name.localeCompare(b.name, 'ko'))
-  }, [allRows, finalGongoSet])
-  const pendingCount = allRows.filter((row) => isHumanReviewCandidate(row, '', finalGongoSet)).length
-
   return (
     <>
-      <section className="jongmok-review-panel">
-        <div className="section-head">
-          <div>
-            <h2>종목별 공고관리</h2>
-            <span>전처리된 공고를 종목별로 불러와 사람이 입력하고, 완료 후 곡괭이후나라시로 2차분류 완료에 보냅니다.</span>
-          </div>
-        </div>
-        <div className="jongmok-chip-list">
-          <button type="button" className={!activeJongmok ? 'active' : ''} onClick={() => setActiveJongmok('')}>
-            미완료 전체
-            <span>{pendingCount.toLocaleString()}건</span>
-          </button>
-          {jongmokGroups.map((group) => (
-            <button
-              key={group.name}
-              type="button"
-              className={activeJongmok === group.name ? 'active' : ''}
-              onClick={() => setActiveJongmok(group.name)}
-            >
-              {group.name}
-              <span>{group.count.toLocaleString()}건</span>
-              {group.moved ? <b>{group.count === 0 ? '이관완료' : `${group.moved}건 이관`}</b> : null}
-            </button>
-          ))}
-        </div>
-      </section>
       <section className="editor-panel">
         <div className="section-head">
           <div>
