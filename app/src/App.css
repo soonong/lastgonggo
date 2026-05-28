@@ -45,8 +45,31 @@ button {
   white-space: nowrap;
 }
 
-button:hover {
+button:hover,
+.button-like:hover {
   border-color: #8fa3b8;
+}
+
+.button-like {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  color: #213244;
+  background: #ffffff;
+  border: 1px solid #cfd8e3;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button-like.disabled {
+  opacity: 0.55;
+  pointer-events: auto;
+  cursor: not-allowed;
 }
 
 button:disabled {

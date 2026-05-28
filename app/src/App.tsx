@@ -2554,6 +2554,10 @@ function NewDocumentPickaxeView({
     }
   }
 
+  const noticeHtmlHref = noticeNo.trim()
+    ? `/api/parser/a3/html?gongsanum=${encodeURIComponent(noticeNo.trim())}`
+    : '#'
+
   return (
     <div className="settings-stack new-pickaxe-view">
       <section className="parser-test-panel">
@@ -2569,6 +2573,22 @@ function NewDocumentPickaxeView({
             <FileCheck2 size={16} />
             신문서곡괭이 실행
           </button>
+          <a
+            className={noticeNo.trim() ? 'button-like' : 'button-like disabled'}
+            href={noticeHtmlHref}
+            target="_blank"
+            rel="noreferrer"
+            aria-disabled={!noticeNo.trim()}
+            onClick={(event) => {
+              if (!noticeNo.trim()) {
+                event.preventDefault()
+                setStatus('공고번호가 필요합니다.')
+              }
+            }}
+          >
+            <PanelRightClose size={16} />
+            공고문 새창
+          </a>
           <span className="parser-test-status">{status}</span>
         </div>
       </section>

@@ -269,6 +269,56 @@ async function parseA3Notice(reqUrl, res) {
   sendJson(res, 200, parseNoticeHtml(body, gongsanum))
 }
 
+function escapeHtmlText(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+async function openA3NoticeHtml(reqUrl, res) {
+  const gongsanum = reqUrl.searchParams.get('gongsanum') || reqUrl.searchParams.get('怨듦퀬踰덊샇')
+  const moduleKey = process.env.BID_MODULE_KEY
+  if (!moduleKey) {
+    res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end('<!doctype html><meta charset="utf-8"><body>BID_MODULE_KEY가 없습니다.</body>')
+    return
+  }
+  if (!gongsanum) {
+    res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end('<!doctype html><meta charset="utf-8"><body>공고번호가 필요합니다.</body>')
+    return
+  }
+  const body = await fetchA3Html(gongsanum, moduleKey)
+  const safeNo = escapeHtmlText(gongsanum)
+  const doc = `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>${safeNo} 파싱용공고문</title>
+  <style>
+    body { margin: 0; padding: 24px; font-family: "Malgun Gothic", Arial, sans-serif; line-height: 1.55; color: #0f172a; background: #fff; }
+    .notice-toolbar { position: sticky; top: 0; z-index: 1; margin: -24px -24px 18px; padding: 12px 18px; border-bottom: 1px solid #d7e0ec; background: #f8fafc; }
+    .notice-toolbar strong { font-size: 15px; }
+    .notice-body { max-width: 1120px; margin: 0 auto; }
+    table { border-collapse: collapse; }
+    td, th { border: 1px solid #d7e0ec; padding: 4px 6px; }
+  </style>
+</head>
+<body>
+  <div class="notice-toolbar"><strong>${safeNo}</strong> 파싱용공고문</div>
+  <main class="notice-body">${body || '<p>공고문 내용이 없습니다.</p>'}</main>
+</body>
+</html>`
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+  })
+  res.end(doc)
+}
+
 async function normalizeA3Notice(reqUrl, res) {
   const gongsanum = reqUrl.searchParams.get('gongsanum') || reqUrl.searchParams.get('공고번호')
   const moduleKey = process.env.BID_MODULE_KEY
@@ -1255,6 +1305,11 @@ const server = http.createServer(async (req, res) => {
 
     if (reqUrl.pathname === '/api/parser/a3') {
       await parseA3Notice(reqUrl, res)
+      return
+    }
+
+    if (reqUrl.pathname === '/api/parser/a3/html') {
+      await openA3NoticeHtml(reqUrl, res)
       return
     }
 
