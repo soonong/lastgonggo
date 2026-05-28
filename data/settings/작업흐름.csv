@@ -1,17 +1,16 @@
 id,단계,구분,이름,설명,구현상태,화면,연결설정,순서
-collect,수집,대단계,서버공고 수집,A1 서버공고에서 모든 공고 컬럼을 받는 단계,구현됨,collect,apiConfig,1
-pre.before,전처리,세부,곡괭이전나라시,서버공고 raw만 보고 가능한 정리와 특수조건 라우팅을 먼저 실행,구현됨,preprocess,deleteKeywords/bracketRules/orgMap/biddingFormula,2
-pre.parser,전처리,세부,문서곡괭이,A3 파싱용공고문 HTML을 읽어 빈값과 조건값 후보를 채움,구현됨,preprocess,parserRules/parserTypeGuide/noticeTags/specialRecords/specialCommon,3
-pre.priority,전처리,세부,값 선택 / 컬럼 우선순위,서버공고값·문서곡괭이값·계산값 중 컬럼룰 우선순위로 최종 후보를 선택,구현됨,preprocess,standardColumns,4
-pre.jongmok,전처리,세부,종목묶기,종목·전문건설 주력분야를 기준으로 단독평가종목과 종목세부JSON 기초값을 구성,구현됨,preprocess,jongmokMap,5
-pre.after,전처리,세부,곡괭이후나라시 / 계산맨,다른 컬럼 참조 계산·lookup·조건식을 적용해 계산 컬럼을 채움,구현됨,preprocess,standardColumns/agencyCode/regionDb,6
-pre.eval1,전처리,세부,적격심사 1차 매칭,원발주처·건설유형·금액·공고일 기준으로 기본 적격평가기준_세부를 찾음,구현됨,preprocess,evaluationCriteria/bidMethodSkip,7
-pre.eval2,전처리,세부,적격심사 2차 매칭,공고확인·특수실적 등 세부 조건으로 원발주처와 적격평가기준_세부를 덮어씀,구현됨,preprocess,secondaryCriteria/noticeTags/specialRecords,8
-pre.a4,전처리,세부,A4 적격심사세부기준 조회,적격평가기준_세부 기준으로 세부기준 row를 상세모달에서 불러옴,구현됨,human,evaluationCriteria,9
-pre.validation,전처리,세부,검증맨,지역·종목·적격 기준 등 확인필요/오류 상태를 표시,기초구현,preprocess,autoValidateRules/regionHint/reviewQueue,10
-human,사람입력,대단계,사람입력 / 재전처리,빈값·충돌값·애매한 값을 사람이 수정하고 필요한 컬럼만 다시 전처리,구현됨,human,fieldRules/keywordRules,11
-output,최종출력,대단계,최종출력,검증 기준을 통과한 모든 표준 컬럼을 엑셀로 출력,구현됨,output,standardColumns,12
-rules,룰관리,대단계,룰관리,전체 흐름에서 사용하는 기준표와 마스터 데이터를 관리,구현됨,rules,settingTabs,13
-
-
-
+collect,수집,대단계,서버공고 API 수집,A1 서버공고에서 모든 공고 컬럼을 한 행으로 받는 단계. A3/A4는 수집 원본이 아니라 전처리 참조 API다.,구현됨,collect,apiConfig/standardColumns,1
+pre.before,전처리,세부,곡괭이전나라시,서버공고 raw만 보고 가능한 삭제키워드·괄호정리·적격발주처변경·투찰금액산식을 먼저 실행,구현됨,preprocess,deleteKeywords/bracketRules/orgMap/biddingFormula,2
+pre.normalize,전처리,세부,A3 공고문 정규화,A3 파싱용공고문 HTML을 원문줄·문단·번호/섹션·표후보로 나누고 섹션분류 기준을 적용,기초구현,preprocess,sectionRules/parserTypeGuide,3
+pre.parser,전처리,세부,문서곡괭이,A3 정규화 결과와 조건판단형태 룰로 빈값과 조건값 후보를 보수적으로 추출하고 근거를 남김,기초구현,preprocess,parserRules/newDocumentPickaxeRules/parserTypeGuide,4
+pre.conditions,전처리,세부,공고체크 조건값 채우기,공고확인·특수실적·특수실적_공통 값을 문서곡괭이 또는 사람입력으로 채워 2차 매칭 조건으로 준비,기초구현,preprocess,noticeTags/specialRecords/specialCommon/keywordRules,5
+pre.priority,전처리,세부,값 선택 / 컬럼 우선순위,서버정보·문서곡괭이·계산값 중 공고분류컬럼 설정의 우선순위로 최종 후보를 선택,구현됨,preprocess,standardColumns,6
+pre.jongmok,전처리,세부,종목묶기,종목·전문건설 주력분야·상호진출·모두보유 조건으로 단독평가종목과 종목세부JSON 기초값을 구성,구현됨,preprocess,jongmokMap/jongmokBundleRules,7
+pre.after,전처리,세부,곡괭이후나라시 / 계산맨,다른 컬럼 참조 계산·lookup·조건식·RuleNode를 적용해 계산 컬럼을 채움,구현됨,preprocess,standardColumns/agencyCode/regionDb,8
+pre.eval1,전처리,세부,적격심사 1차 매칭,원발주처·건설유형·금액·공고일 기준으로 기본 적격평가기준_세부를 찾음,구현됨,preprocess,evaluationCriteria/bidMethodSkip,9
+pre.eval2,전처리,세부,적격심사 2차 매칭,공고확인·특수실적 등 세부 조건으로 원발주처와 적격평가기준_세부를 덮어씀,구현됨,preprocess,secondaryCriteria/noticeTags/specialRecords/specialCommon,10
+pre.a4,전처리,세부,A4 적격심사세부기준 조회,적격평가기준_세부 기준으로 A4 적격심사세부기준 row를 불러와 실적배수·인정기간을 확인,구현됨,human,evaluationCriteria,11
+pre.validation,전처리,세부,검증맨,지역·종목·적격 기준·문서곡괭이 근거 등 확인필요/오류 상태를 상세모달 중심으로 표시,기초구현,preprocess,autoValidateRules/regionHint/reviewQueue,12
+human,사람입력,대단계,사람입력 / 필요한 컬럼 재전처리,빈값·충돌값·애매한 값을 사람이 수정하고 공고확인·특수실적 등 변경된 조건값 기준으로 필요한 컬럼만 다시 처리,구현됨,human,fieldRules/keywordRules/secondaryCriteria,13
+output,최종출력,대단계,최종출력,검증 기준을 통과한 데이터를 서버공고 기준 모든 표준 컬럼과 함께 엑셀로 출력,구현됨,output,standardColumns,14
+rules,룰관리,대단계,룰관리,전체 흐름에서 사용하는 컬럼룰·분류규칙·마스터데이터·검수 기준표를 관리,구현됨,rules,settingTabs,15
