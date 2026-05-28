@@ -2647,24 +2647,26 @@ function ParserTypeGuideView({
                 </div>
               </div>
 
-              <div className="parser-guide-section">
-                <strong>판단 로직 (이 순서대로)</strong>
-                <ol>
-                  {logic.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ol>
-              </div>
+              <div className="parser-guide-section parser-guide-detail">
+                <div className="parser-guide-subsection">
+                  <strong>판단 로직 (이 순서대로)</strong>
+                  <ol>
+                    {logic.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ol>
+                </div>
 
-              <div className="parser-guide-example">
-                <span>예시</span>
-                <p>{valueToText(active['예시본문'])}</p>
-                <b>→ {valueToText(active['결과예시'])}</b>
-              </div>
+                <div className="parser-guide-subsection">
+                  <strong>함정 / 주의</strong>
+                  <p>{valueToText(active['주의'])}</p>
+                </div>
 
-              <div className="parser-guide-section">
-                <strong>함정 / 주의</strong>
-                <p>{valueToText(active['주의'])}</p>
+                <div className="parser-guide-subsection parser-guide-example-inline">
+                  <strong>예시</strong>
+                  <p>{valueToText(active['예시본문'])}</p>
+                  <b>→ {valueToText(active['결과예시'])}</b>
+                </div>
               </div>
 
               <div className={disabledNote ? 'parser-guide-toggle disabled' : 'parser-guide-toggle'}>
@@ -2686,6 +2688,7 @@ function ParserTypeGuideView({
                             {value}
                           </button>
                         ))}
+                        <em>{item.desc}</em>
                       </label>
                     ))}
                   </div>
