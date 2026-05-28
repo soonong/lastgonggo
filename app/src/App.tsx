@@ -1965,7 +1965,7 @@ function preferredColumnsForSetting(key: string) {
       '정책고정사유',
     ],
     parserRules: ['id', '사용여부', '대상컬럼', '조건판단형태', '표시형식', '검색키워드', '제외키워드', '고정값', '참조마스터', '문맥범위', '검색범위', '제외범위', 'gap', '우선순위', '후처리', '예시본문', '기대값', '설명'],
-    newDocumentPickaxeRules: ['항목', '조건판단형태', '검색키워드', '제외키워드', '고정값', '결과값'],
+    newDocumentPickaxeRules: ['항목', '조건판단형태', '검색키워드', '제외키워드', '고정값', '결과값', '근거유형', '근거키워드', '근거본문'],
     sectionRules: ['id', '사용여부', '섹션분류', '제목키워드', '본문키워드', '제외키워드', '우선순위', '메모'],
     bidMethodSkip: ['id', '입찰방식', '메모'],
   }
@@ -2115,7 +2115,7 @@ function SettingsDatasetView({
   const pageStart = pageSize === 'all' ? 0 : (safePage - 1) * effectivePageSize
   const pageRows = pageSize === 'all' ? filtered : filtered.slice(pageStart, pageStart + effectivePageSize)
   const displayed = pageRows.map((row) => ({ ...row, __settingsIndex: sourceRows.indexOf(row) }))
-  const dirtyIgnoredColumns = datasetId === 'newDocumentPickaxeRules' ? ['결과값'] : []
+  const dirtyIgnoredColumns = datasetId === 'newDocumentPickaxeRules' ? ['결과값', '근거유형', '근거키워드', '근거본문'] : []
   const isDirty = editable
     && JSON.stringify(draftRows.map((row) => stripSettingsMeta(row, dirtyIgnoredColumns)))
       !== JSON.stringify(rows.map((row) => stripSettingsMeta(row, dirtyIgnoredColumns)))
@@ -2501,13 +2501,14 @@ function NewDocumentPickaxeView({
   onDirtyChange: (id: string, label: string, dirty: boolean, save: () => Promise<void>, reset: () => void) => void
 }) {
   const [noticeNo, setNoticeNo] = useState('2026-06694')
-  const [draftRows, setDraftRows] = useState<NoticeRow[]>(rows)
+  const sortedRows = useMemo(() => sortNewDocumentPickaxeRows(rows), [rows])
+  const [draftRows, setDraftRows] = useState<NoticeRow[]>(sortedRows)
   const [status, setStatus] = useState('공고번호를 넣고 실행하면 결과값이 채워집니다.')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    setDraftRows(rows)
-  }, [rows])
+    setDraftRows(sortedRows)
+  }, [sortedRows])
 
   const typeHelp = useMemo(
     () => parserTypeGuide
@@ -2538,11 +2539,23 @@ function NewDocumentPickaxeView({
     try {
       const result = await runDocumentPickaxeBatchTest({ gongsanum: target, rows: cleanRowsForSave(draftRows) })
       const fields = result.fields ?? {}
+      const matchesByColumn = new Map<string, NonNullable<typeof result.matches>[number]>()
+      for (const match of result.matches ?? []) {
+        const column = valueToText(match.column).trim()
+        if (column && !matchesByColumn.has(column)) matchesByColumn.set(column, match)
+      }
       const nextRows = draftRows.map((row) => {
         const item = valueToText(row['항목']).trim()
-        return { ...row, 결과값: valueToText(fields[item]) }
+        const match = matchesByColumn.get(item)
+        return {
+          ...row,
+          결과값: valueToText(fields[item]),
+          근거유형: valueToText(match?.type),
+          근거키워드: valueToText(match?.matchedKeyword),
+          근거본문: valueToText(match?.sourceText),
+        }
       })
-      setDraftRows(nextRows)
+      setDraftRows(sortNewDocumentPickaxeRows(nextRows))
       const filled = nextRows.filter((row) => valueToText(row['결과값']).trim()).length
       setStatus(
         `${target} 실행 완료: ${nextRows.length.toLocaleString()}개 항목 중 ${filled.toLocaleString()}개 추출, 근거 ${(result.matches ?? []).length.toLocaleString()}개`,
@@ -2594,7 +2607,7 @@ function NewDocumentPickaxeView({
       </section>
       <SettingsDatasetView
         title="신문서곡괭이"
-        rows={rows}
+        rows={sortedRows}
         search={search}
         preferredColumns={preferredColumnsForSetting('newDocumentPickaxeRules')}
         datasetId="newDocumentPickaxeRules"
@@ -2604,8 +2617,11 @@ function NewDocumentPickaxeView({
           const savedWithResults = saved.map((row) => ({
             ...row,
             결과값: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['결과값']),
+            근거유형: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['근거유형']),
+            근거키워드: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['근거키워드']),
+            근거본문: valueToText(draftRows.find((item) => valueToText(item['항목']) === valueToText(row['항목']))?.['근거본문']),
           }))
-          setDraftRows(savedWithResults)
+          setDraftRows(sortNewDocumentPickaxeRows(savedWithResults))
           return savedWithResults
         }}
         onDirtyChange={onDirtyChange}
@@ -2616,12 +2632,34 @@ function NewDocumentPickaxeView({
           제외키워드: '검색키워드가 잡혀도 같은 매칭 범위에 이 키워드가 있으면 결과를 버립니다.',
           고정값: '3_1처럼 존재 여부만 볼 때 매칭되면 채울 값입니다. 비워두면 조건판단형태 기본값을 씁니다.',
           결과값: '상단 공고번호로 실행했을 때 실제 추출된 값입니다. 저장 대상이 아닙니다.',
+          근거유형: '결과값을 만든 조건판단형태입니다. 예: 1_2 금액, 3_2 별칭.',
+          근거키워드: '본문에서 실제로 걸린 검색키워드입니다. 같은 값이 왜 나왔는지 볼 때 먼저 확인합니다.',
+          근거본문: '매칭된 키워드 주변 원문입니다. 추정가격/추정금액처럼 충돌할 때 이 근거를 보고 제외키워드나 검색키워드를 조정합니다.',
         }}
-        onDraftRowsChange={setDraftRows}
+        onDraftRowsChange={(nextRows) => setDraftRows(sortNewDocumentPickaxeRows(nextRows))}
         controlledDraftRows={draftRows}
       />
     </div>
   )
+}
+
+function sortNewDocumentPickaxeRows(rows: NoticeRow[]) {
+  return [...rows].sort((a, b) => {
+    const aRank = firstConditionTypeRank(a['조건판단형태'])
+    const bRank = firstConditionTypeRank(b['조건판단형태'])
+    if (aRank !== bRank) return aRank - bRank
+    return valueToText(a['항목']).localeCompare(valueToText(b['항목']), 'ko')
+  })
+}
+
+function firstConditionTypeRank(value: unknown) {
+  const first = valueToText(value)
+    .split(',')
+    .map((item) => item.trim())
+    .find(Boolean)
+  const match = first?.match(/^(\d+)[_-](\d+)/)
+  if (!match) return Number.MAX_SAFE_INTEGER
+  return Number(match[1]) * 100 + Number(match[2])
 }
 
 function splitGuideItems(value: unknown) {
