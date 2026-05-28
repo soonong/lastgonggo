@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   CloudDownload,
   Database,
-  Download,
   FileDown,
   FileCheck2,
   FileSpreadsheet,
@@ -17,7 +16,6 @@ import {
   Moon,
   PanelRightClose,
   Play,
-  RefreshCw,
   Save,
   Search,
   Settings,
@@ -34,7 +32,6 @@ import {
   fetchA3Parser,
   fetchBidFiles,
   fetchHealth,
-  fetchLocalServerNotices,
   fetchQualification,
   fetchServerColumnProfiles,
   fetchSettingsRows,
@@ -213,14 +210,71 @@ function normalizeCompare(value: string) {
   return value.replace(/[\s,]/g, '').toLowerCase()
 }
 
-function getColumns(rows: NoticeRow[], profiles: ServerColumnProfile[]) {
+function getColumns(rows: NoticeRow[], profiles: ServerColumnProfile[], rules: StandardColumnRule[] = []) {
   const profileColumns = profiles.map((row) => row.항목).filter(Boolean)
   const rowColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
     .filter((col) => !col.startsWith('_') && !hiddenMainColumns.has(col))
   const known = Array.from(new Set([...profileColumns, ...rowColumns]))
-  const rest = known.filter((col) => !priorityColumns.includes(col))
-  const front = priorityColumns.filter((col) => known.includes(col))
-  return [...front, ...rest]
+  const ruleOrder = rules
+    .filter((rule) => rule.항목 && known.includes(rule.항목))
+    .sort((a, b) => {
+      const an = Number(a.id)
+      const bn = Number(b.id)
+      if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn
+      if (Number.isFinite(an) && !Number.isFinite(bn)) return -1
+      if (!Number.isFinite(an) && Number.isFinite(bn)) return 1
+      return String(a.id ?? '').localeCompare(String(b.id ?? ''), 'ko')
+    })
+    .map((rule) => rule.항목)
+  const ordered = Array.from(new Set(ruleOrder))
+  const rest = known.filter((col) => !ordered.includes(col))
+  const front = priorityColumns.filter((col) => rest.includes(col))
+  return [...ordered, ...front, ...rest.filter((col) => !front.includes(col))]
+}
+
+type FormatIssue = {
+  column: string
+  format: string
+  value: string
+}
+
+function inspectFormatMismatches(rows: NoticeRow[], rules: StandardColumnRule[], limit = 20): FormatIssue[] {
+  if (!rows.length || !rules.length) return []
+  const issues: FormatIssue[] = []
+  for (const rule of rules) {
+    const column = valueToText(rule.항목).trim()
+    const format = valueToText(rule.표시형식).trim()
+    if (!column || !format) continue
+    for (const row of rows.slice(0, 300)) {
+      const value = valueToText(row[column]).trim()
+      if (!value) continue
+      if (matchesDisplayFormat(value, format)) continue
+      issues.push({ column, format, value })
+      break
+    }
+    if (issues.length >= limit) break
+  }
+  return issues
+}
+
+function matchesDisplayFormat(value: string, format: string) {
+  const normalized = value.replace(/,/g, '').trim()
+  if (/^y{2,4}-m{2}-d{2}/i.test(format)) {
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return true
+    if (/^\d{4}\.\d{2}\.\d{2}/.test(value)) return true
+    if (/^\d{2}-\d{2}-\d{2}/.test(value)) return true
+    return false
+  }
+  if (format.includes('%')) {
+    return /^-?\d+(\.\d+)?%?$/.test(normalized)
+  }
+  if (/^[#,\.0]+$/.test(format)) {
+    return /^-?\d+(\.\d+)?$/.test(normalized)
+  }
+  if (format.includes('일치하는값') || format.includes('일치하는 값')) {
+    return true
+  }
+  return true
 }
 
 function escapeHtml(value: unknown) {
@@ -348,7 +402,7 @@ function App() {
   const [preRows, setPreRows] = useState<NoticeRow[]>([])
   const [humanRows, setHumanRows] = useState<NoticeRow[]>([])
   const [finalRows, setFinalRows] = useState<NoticeRow[]>([])
-  const [source, setSource] = useState('미수집')
+  const [, setSource] = useState('미수집')
   const [profiles, setProfiles] = useState<ServerColumnProfile[]>([])
   const [rules, setRules] = useState<StandardColumnRule[]>([])
   const [query] = useState('isDefault=Y&containCancel=N&onlyGong=Y')
@@ -358,15 +412,16 @@ function App() {
   const [rowLimit, setRowLimit] = useState(200)
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('앱 준비 중')
-  const [hasModuleKey, setHasModuleKey] = useState<boolean | null>(null)
+  const [, setHasModuleKey] = useState<boolean | null>(null)
   const [preStats, setPreStats] = useState<PipelineStats | null>(null)
   const [selectedGongo, setSelectedGongo] = useState('')
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [parserNote, setParserNote] = useState('')
   const [selectedRuleItem, setSelectedRuleItem] = useState('')
   const [ruleDraft, setRuleDraft] = useState<Record<string, string>>({})
-  const [logs, setLogs] = useState<string[]>(['대기: API 호출 또는 샘플 로드를 실행하세요.'])
+  const [logs, setLogs] = useState<string[]>(['대기: API 호출을 실행하세요.'])
   const [logCollapsed, setLogCollapsed] = useState(false)
+  const [formatIssues, setFormatIssues] = useState<FormatIssue[]>([])
   const [detailRow, setDetailRow] = useState<NoticeRow | null>(null)
   const [parserCache, setParserCache] = useState<Record<string, ParserResult>>({})
   const [preprocessSettings, setPreprocessSettings] = useState<PreprocessSettings>({})
@@ -437,7 +492,7 @@ function App() {
     return rawRows
   }, [finalRows, humanRows, preRows, rawRows, stage])
 
-  const columns = useMemo(() => getColumns(stageRows, profiles), [stageRows, profiles])
+  const columns = useMemo(() => getColumns(stageRows, profiles, rules), [stageRows, profiles, rules])
   const jongmokOptions = useMemo(() => {
     const values = (settingRows.jongmokMap ?? [])
       .map((row) => valueToText(row['업종']).trim())
@@ -503,27 +558,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeydown)
   }, [detailRow])
 
-  async function loadLocalSample() {
-    setLoading(true)
-    setStatus('로컬 샘플 불러오는 중')
-    try {
-      const data = await fetchLocalServerNotices(500)
-      setRawRows(data.rows)
-      setPreRows([])
-      setHumanRows([])
-      setFinalRows([])
-      setPreStats(null)
-      setSource(data.source)
-      setStage('collect')
-      setStatus(`로컬 샘플 ${data.rows.length}건 로드`)
-      addLog(`샘플 ${data.rows.length}건 로드`)
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setLoading(false)
-    }
-  }
-
   function applyCollectionImportFilters(rows: NoticeRow[]) {
     const since = dateFilter.trim()
     const jongmok = jongmokFilter.trim()
@@ -539,21 +573,35 @@ function App() {
 
   async function loadA1() {
     setLoading(true)
-    setStatus('A1 서버공고 호출 중')
+    setFormatIssues([])
+    setPreprocessProgress({ running: true, done: 0, total: 0, failed: 0, current: 'API 호출' })
+    setStatus('API 호출 중 0/0')
     try {
       const data = await fetchA1ServerNotices(query)
       const importedRows = applyCollectionImportFilters(data.rows)
+      const nextFormatIssues = inspectFormatMismatches(importedRows, rules)
       setRawRows(importedRows)
       setPreRows([])
       setHumanRows([])
       setFinalRows([])
       setPreStats(null)
+      setFormatIssues(nextFormatIssues)
       setSource(data.source)
       setStage('collect')
-      setStatus(`A1 서버공고 ${data.rows.length}건 중 자동수집 대상 ${importedRows.length}건 로드`)
+      setStatus(`API 호출 완료 ${importedRows.length}/${data.rows.length}`)
+      setPreprocessProgress({ running: false, done: importedRows.length, total: data.rows.length, failed: 0, current: '' })
       addLog(`A1 서버공고 로드: 전체 ${data.rows.length}건, 자동수집여부=1 ${importedRows.length}건`)
+      if (nextFormatIssues.length) {
+        addLog(
+          `표시형식 불일치 ${nextFormatIssues.length}개: ${nextFormatIssues
+            .slice(0, 5)
+            .map((item) => `${item.column}(${item.format})=${item.value}`)
+            .join(' / ')}`,
+        )
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
+      setPreprocessProgress({ running: false, done: 0, total: 0, failed: 1, current: '' })
     } finally {
       setLoading(false)
     }
@@ -561,7 +609,7 @@ function App() {
 
   function runBeforeNarashi() {
     if (!rawRows.length) {
-      setStatus('수집 row가 없습니다. 샘플 또는 A1을 먼저 불러오세요.')
+      setStatus('수집 row가 없습니다. API 호출을 먼저 실행하세요.')
       return
     }
 
@@ -571,6 +619,7 @@ function App() {
       return
     }
 
+    setPreprocessProgress({ running: true, done: 0, total: targetRows.length, failed: 0, current: '곡괭이전나라시' })
     const result = preprocessRows(targetRows, rules, preprocessSettings)
     setPreRows(result.rows)
     setHumanRows([])
@@ -578,6 +627,7 @@ function App() {
     setPreStats(result.stats)
     setStage('preprocess')
     setStatus(`곡괭이전나라시 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건`)
+    setPreprocessProgress({ running: false, done: result.stats.total, total: targetRows.length, failed: result.stats.errors, current: '' })
     addLog(`곡괭이전나라시 완료: 전체 ${result.stats.total}, 변경 ${result.stats.changed}, 확인 ${result.stats.review}, 오류 ${result.stats.errors}`)
   }
 
@@ -727,6 +777,7 @@ function App() {
     setHumanRows([])
     setFinalRows([])
     setPreStats(null)
+    setFormatIssues([])
     setSource('미수집')
     setSearch('')
     setDateFilter('')
@@ -841,10 +892,6 @@ function App() {
             <Play size={15} />
             곡괭이전나라시
           </button>
-          <button type="button" onClick={loadLocalSample} disabled={loading}>
-            <RefreshCw size={15} />
-            샘플
-          </button>
           <button className="danger" type="button" onClick={clearAllRows}>
             <AlertTriangle size={15} />
             모두 삭제
@@ -877,6 +924,23 @@ function App() {
       )
     }
     return null
+  }
+
+  function tableMeta(total: number, filtered: number, shown: number) {
+    const parts: string[] = []
+    if (preprocessProgress.running) {
+      const totalText = preprocessProgress.total ? preprocessProgress.total.toLocaleString() : '0'
+      parts.push(`${preprocessProgress.current || '진행중'} ${preprocessProgress.done.toLocaleString()}/${totalText}`)
+    } else if (status) {
+      parts.push(status)
+    }
+    parts.push(`전체 ${total.toLocaleString()}건`)
+    parts.push(`검색 ${filtered.toLocaleString()}건`)
+    parts.push(`화면 표시 ${shown.toLocaleString()}건`)
+    parts.push(`컬럼 ${columns.length.toLocaleString()}`)
+    parts.push(`빈칸 ${emptyCells.toLocaleString()}`)
+    if (stage === 'collect' && formatIssues.length) parts.push(`형식불일치 ${formatIssues.length.toLocaleString()}개`)
+    return parts.join(' · ')
   }
 
   function renderMain() {
@@ -918,9 +982,7 @@ function App() {
         <OutputView
           columns={columns}
           rows={finalRows}
-          filteredCount={filteredRows.length}
-          onExport={exportCurrent}
-          onFinalize={finalizeRows}
+          tableMeta={tableMeta(finalRows.length, filteredRows.length, Math.min(finalRows.length, 200))}
           onRowOpen={setDetailRow}
         />
       )
@@ -930,9 +992,7 @@ function App() {
         <PreprocessView
           columns={columns}
           rows={visibleRows}
-          stats={preStats}
-          totalRows={stageRows.length}
-          filteredRows={filteredRows.length}
+          tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
           onRowOpen={setDetailRow}
         />
       )
@@ -955,6 +1015,7 @@ function App() {
           activeJongmok={jongmokFilter}
           setActiveJongmok={setJongmokFilter}
           finalGongoSet={finalGongoSet}
+          tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
           onRowOpen={setDetailRow}
         />
       )
@@ -963,10 +1024,9 @@ function App() {
       <CollectionView
         columns={columns}
         rows={visibleRows}
-        totalRows={stageRows.length}
-        filteredRows={filteredRows.length}
         rowLimit={rowLimit}
         setRowLimit={setRowLimit}
+        tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
         onRowOpen={setDetailRow}
       />
     )
@@ -1022,7 +1082,6 @@ function App() {
       <section className={`work-grid ${logCollapsed ? 'log-collapsed' : ''}`}>
         <main className="main-workspace">
           <section className="command-row">
-            <div className="total-chip">총 {stageRows.length.toLocaleString()}건</div>
             {renderStageActions()}
             <div className="toolbar-spacer" />
             <label className="toolbar-field narrow">
@@ -1058,22 +1117,6 @@ function App() {
               />
             </div>
           </section>
-
-          <section className="compact-status">
-            <span className={hasModuleKey ? 'ok' : 'warn'}>
-              {hasModuleKey ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
-              {hasModuleKey ? 'moduleKey 연결됨' : 'moduleKey 없음'}
-            </span>
-            <span>{source}</span>
-            <span>{status}</span>
-            <span>필터 {filteredRows.length.toLocaleString()}건</span>
-            <span>컬럼 {columns.length.toLocaleString()}</span>
-            <span>빈칸 {emptyCells.toLocaleString()}</span>
-          </section>
-
-          {preprocessProgress.running || preprocessProgress.total ? (
-            <ProgressBar progress={preprocessProgress} />
-          ) : null}
 
           {renderMain()}
         </main>
@@ -1128,25 +1171,6 @@ function Metric({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
-  )
-}
-
-function ProgressBar({ progress }: { progress: PreprocessProgress }) {
-  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0
-  return (
-    <section className="progress-panel">
-      <div className="progress-head">
-        <strong>{progress.running ? '곡괭이질 진행 중' : '마지막 곡괭이질 결과'}</strong>
-        <span>
-          {progress.done.toLocaleString()} / {progress.total.toLocaleString()}건
-          {progress.failed ? ` · 실패 ${progress.failed.toLocaleString()}건` : ''}
-          {progress.current ? ` · 현재 ${progress.current}` : ''}
-        </span>
-      </div>
-      <div className="progress-track">
-        <div style={{ width: `${pct}%` }} />
-      </div>
-    </section>
   )
 }
 
@@ -1333,28 +1357,24 @@ function flowItemState(
 function CollectionView({
   columns,
   rows,
-  totalRows,
-  filteredRows,
   rowLimit,
   setRowLimit,
+  tableMeta,
   onRowOpen,
 }: {
   columns: string[]
   rows: NoticeRow[]
-  totalRows: number
-  filteredRows: number
   rowLimit: number
   setRowLimit: (value: number) => void
+  tableMeta: string
   onRowOpen: (row: NoticeRow) => void
 }) {
   return (
     <section className="table-section">
       <div className="section-head">
-        <div>
+        <div className="section-title-line">
           <h2>서버공고 전체 컬럼</h2>
-          <span>
-            {totalRows.toLocaleString()}건 중 {filteredRows.toLocaleString()}건, 화면 표시 {rows.length}건
-          </span>
+          <span>{tableMeta}</span>
         </div>
         <select value={rowLimit} onChange={(event) => setRowLimit(Number(event.target.value))}>
           <option value={100}>100행</option>
@@ -1362,7 +1382,7 @@ function CollectionView({
           <option value={500}>500행</option>
         </select>
       </div>
-      <DataTable columns={columns} rows={rows} emptyText="샘플 또는 A1 서버공고를 불러오세요." onRowClick={onRowOpen} />
+      <DataTable columns={columns} rows={rows} emptyText="API 호출로 서버공고를 불러오세요." onRowClick={onRowOpen} tableId="main:collect" />
     </section>
   )
 }
@@ -1370,53 +1390,24 @@ function CollectionView({
 function PreprocessView({
   columns,
   rows,
-  stats,
-  totalRows,
-  filteredRows,
+  tableMeta,
   onRowOpen,
 }: {
   columns: string[]
   rows: NoticeRow[]
-  stats: PipelineStats | null
-  totalRows: number
-  filteredRows: number
+  tableMeta: string
   onRowOpen: (row: NoticeRow) => void
 }) {
-  const steps = ['곡괭이전나라시 완료', 'A3 정규화 대기', '문서곡괭이 실행', '계산맨/적격매칭', '검증']
   return (
     <>
-      <section className="pipeline-panel">
-        <div className="section-head">
-          <div>
-            <h2>입찰공고 전처리</h2>
-            <span>곡괭이전나라시 결과를 확인한 뒤 상단의 문서곡괭이질 시작 버튼으로 A3 파싱을 실행합니다.</span>
-          </div>
-        </div>
-        <div className="pipeline">
-          {steps.map((step, index) => (
-            <div key={step} className="pipeline-step">
-              <span>{index + 1}</span>
-              <strong>{step}</strong>
-            </div>
-          ))}
-        </div>
-        <div className="run-summary">
-          <Metric label="처리" value={(stats?.total ?? 0).toLocaleString()} />
-          <Metric label="변경" value={(stats?.changed ?? 0).toLocaleString()} />
-          <Metric label="확인" value={(stats?.review ?? 0).toLocaleString()} />
-          <Metric label="오류" value={(stats?.errors ?? 0).toLocaleString()} />
-        </div>
-      </section>
       <section className="table-section">
         <div className="section-head">
-          <div>
+          <div className="section-title-line">
             <h2>전처리 결과</h2>
-            <span>
-              {totalRows.toLocaleString()}건 중 {filteredRows.toLocaleString()}건, 화면 표시 {rows.length}건
-            </span>
+            <span>{tableMeta}</span>
           </div>
         </div>
-        <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} />
+        <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} tableId="main:preprocess" />
       </section>
     </>
   )
@@ -1438,6 +1429,7 @@ function HumanView({
   activeJongmok,
   setActiveJongmok,
   finalGongoSet,
+  tableMeta,
   onRowOpen,
 }: {
   columns: string[]
@@ -1455,6 +1447,7 @@ function HumanView({
   activeJongmok: string
   setActiveJongmok: (value: string) => void
   finalGongoSet: Set<string>
+  tableMeta: string
   onRowOpen: (row: NoticeRow) => void
 }) {
   const jongmokGroups = useMemo(() => {
@@ -1550,12 +1543,12 @@ function HumanView({
       </section>
       <section className="table-section">
         <div className="section-head">
-          <div>
+          <div className="section-title-line">
             <h2>사람입력 대상</h2>
-            <span>{rows.length.toLocaleString()}건 표시</span>
+            <span>{tableMeta}</span>
           </div>
         </div>
-        <DataTable columns={columns} rows={rows} emptyText="전처리 후 사람입력을 진행하세요." onRowClick={onRowOpen} />
+        <DataTable columns={columns} rows={rows} emptyText="전처리 후 사람입력을 진행하세요." onRowClick={onRowOpen} tableId="main:human" />
       </section>
     </>
   )
@@ -2228,7 +2221,7 @@ function SettingsDatasetView({
   const filtered = filterSettingRows(sourceRows, search)
   const baseColumns = columnsForRows(filtered.length ? filtered : sourceRows, preferredColumns)
   const columns = baseColumns.filter((col) => {
-    if (SETTINGS_DEFAULT_HIDDEN_COLUMNS.has(col)) return false
+    if (SETTINGS_DEFAULT_HIDDEN_COLUMNS.has(col) && datasetId !== 'standardColumns') return false
     if (datasetId === 'standardColumns' && STANDARD_COLUMNS_DEFAULT_HIDDEN.has(col)) return false
     if (datasetId === 'parserTypeGuide' && PARSER_TYPE_GUIDE_TABLE_HIDDEN.has(col)) return false
     return true
@@ -3548,61 +3541,24 @@ function RulesView({
 function OutputView({
   columns,
   rows,
-  filteredCount,
-  onExport,
-  onFinalize,
+  tableMeta,
   onRowOpen,
 }: {
   columns: string[]
   rows: NoticeRow[]
-  filteredCount: number
-  onExport: () => void
-  onFinalize: () => void
+  tableMeta: string
   onRowOpen: (row: NoticeRow) => void
 }) {
-  const ok = rows.filter((row) => valueToText(row['검증상태']) === '정상').length
-  const review = rows.filter((row) => valueToText(row['검증상태']) === '확인필요').length
-  const errors = rows.filter((row) => valueToText(row['검증상태']) === '오류').length
   return (
-    <>
-      <section className="output-panel">
-        <div className="output-summary">
-          <FileSpreadsheet size={34} />
-          <div>
-            <h2>최종 엑셀 출력</h2>
-            <p>
-              {filteredCount.toLocaleString()}행 · {columns.length.toLocaleString()}컬럼
-            </p>
-          </div>
+    <section className="table-section">
+      <div className="section-head">
+        <div className="section-title-line">
+          <h2>최종분류 결과</h2>
+          <span>{tableMeta}</span>
         </div>
-        <div className="panel-actions">
-          <button type="button" onClick={onFinalize} disabled={!rows.length}>
-            <FileCheck2 size={16} />
-            최종검증
-          </button>
-          <button type="button" onClick={onExport} disabled={!rows.length}>
-            <Download size={16} />
-            현재 결과 출력
-          </button>
-        </div>
-      </section>
-      <section className="metrics output-metrics">
-        <Metric label="정상" value={ok.toLocaleString()} />
-        <Metric label="확인필요" value={review.toLocaleString()} />
-        <Metric label="오류" value={errors.toLocaleString()} />
-        <Metric label="출력행" value={rows.length.toLocaleString()} />
-        <Metric label="출력컬럼" value={columns.length.toLocaleString()} />
-      </section>
-      <section className="table-section">
-        <div className="section-head">
-          <div>
-            <h2>최종분류 결과</h2>
-            <span>검증상태와 검증메모를 앞쪽에서 확인</span>
-          </div>
-        </div>
-        <DataTable columns={columns} rows={rows.slice(0, 200)} emptyText="최종분류를 실행하세요." onRowClick={onRowOpen} />
-      </section>
-    </>
+      </div>
+      <DataTable columns={columns} rows={rows.slice(0, 200)} emptyText="최종분류를 실행하세요." onRowClick={onRowOpen} tableId="main:output" />
+    </section>
   )
 }
 

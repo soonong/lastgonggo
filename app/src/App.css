@@ -292,48 +292,6 @@ textarea:focus {
   font-weight: 800;
 }
 
-.progress-panel {
-  margin-top: 6px;
-  padding: 7px 9px;
-  background: #ffffff;
-  border: 1px solid #d9e1eb;
-  border-radius: 4px;
-}
-
-.progress-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
-  color: #536578;
-  font-size: 12px;
-}
-
-.progress-head strong {
-  color: #1f3f60;
-}
-
-.progress-head span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.progress-track {
-  height: 8px;
-  overflow: hidden;
-  background: #e7edf3;
-  border-radius: 999px;
-}
-
-.progress-track div {
-  height: 100%;
-  background: #3b6ea8;
-  border-radius: inherit;
-  transition: width 160ms ease;
-}
-
 .flow-overview {
   display: flex;
   flex-direction: column;
