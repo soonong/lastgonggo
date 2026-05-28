@@ -2017,7 +2017,7 @@ td.status-오류 {
 
 .parser-guide-detail {
   display: grid;
-  gap: 18px;
+  gap: 32px;
 }
 
 .parser-guide-subsection {
