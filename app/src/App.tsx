@@ -2550,7 +2550,7 @@ function NewDocumentPickaxeView({
         const match = matchesByColumn.get(item)
         return {
           ...row,
-          결과값: valueToText(fields[item]),
+          결과값: formatNewPickaxeResult(row, fields[item]),
           근거키워드: valueToText(match?.matchedKeyword),
           근거본문: valueToText(match?.sourceText),
         }
@@ -2642,6 +2642,20 @@ function NewDocumentPickaxeView({
   )
 }
 
+function formatNewPickaxeResult(row: NoticeRow, value: unknown) {
+  const text = valueToText(value).trim()
+  if (!text) return ''
+  const types = splitRuleTypesForDisplay(row['조건판단형태'])
+  if (!types.includes('1_2')) return text
+  return text
+    .split('/')
+    .map((part) => {
+      const clean = part.trim()
+      return /^\d+$/.test(clean) ? Number(clean).toLocaleString('ko-KR') : clean
+    })
+    .join('/')
+}
+
 function sortNewDocumentPickaxeRows(rows: NoticeRow[]) {
   return [...rows].sort((a, b) => {
     const aRank = firstConditionTypeRank(a['조건판단형태'])
@@ -2652,13 +2666,18 @@ function sortNewDocumentPickaxeRows(rows: NoticeRow[]) {
 }
 
 function firstConditionTypeRank(value: unknown) {
-  const first = valueToText(value)
-    .split(',')
-    .map((item) => item.trim())
+  const first = splitRuleTypesForDisplay(value)
     .find(Boolean)
   const match = first?.match(/^(\d+)[_-](\d+)/)
   if (!match) return Number.MAX_SAFE_INTEGER
   return Number(match[1]) * 100 + Number(match[2])
+}
+
+function splitRuleTypesForDisplay(value: unknown) {
+  return valueToText(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function splitGuideItems(value: unknown) {
