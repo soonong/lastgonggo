@@ -2509,8 +2509,11 @@ function NewDocumentPickaxeView({
     setDraftRows(rows)
   }, [rows])
 
-  const typeOptions = useMemo(
-    () => ['', ...parserTypeGuide.map((row) => valueToText(row['조건판단형태']).trim()).filter(Boolean)],
+  const typeHelp = useMemo(
+    () => parserTypeGuide
+      .map((row) => `${valueToText(row['조건판단형태']).trim()}=${valueToText(row['이름']).trim()}`)
+      .filter((item) => item && !item.startsWith('='))
+      .join(', '),
     [parserTypeGuide],
   )
 
@@ -2586,10 +2589,9 @@ function NewDocumentPickaxeView({
           return savedWithResults
         }}
         onDirtyChange={onDirtyChange}
-        selectColumnOptions={{ 조건판단형태: typeOptions }}
         columnHelpMap={{
           항목: '서버공고/API 기준으로 받은 모든 표준 컬럼 항목입니다.',
-          조건판단형태: '이 항목 값을 뽑을 문서곡괭이 판단 방식입니다. 예: 1_2 금액, 3_2 별칭 키워드.',
+          조건판단형태: `이 항목 값을 뽑을 문서곡괭이 판단 방식입니다. 여러 타입은 쉼표로 적습니다. 예: 4_3, 4_1. 사용 가능: ${typeHelp}`,
           검색키워드: '여러 줄은 OR입니다. 3_2는 (결과값:후보1/후보2) 형식으로 별칭을 줄 수 있습니다.',
           제외키워드: '검색키워드가 잡혀도 같은 매칭 범위에 이 키워드가 있으면 결과를 버립니다.',
           고정값: '3_1처럼 존재 여부만 볼 때 매칭되면 채울 값입니다. 비워두면 조건판단형태 기본값을 씁니다.',
