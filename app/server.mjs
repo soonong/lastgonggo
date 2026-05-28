@@ -851,6 +851,7 @@ function readNewDocumentPickaxeRows() {
       검색키워드: String(existing?.['검색키워드'] || ''),
       제외키워드: String(existing?.['제외키워드'] || ''),
       고정값: String(existing?.['고정값'] || ''),
+      금액선택방식: String(existing?.['금액선택방식'] || ''),
       결과값: '',
     })
     seen.add(item)
@@ -864,6 +865,7 @@ function readNewDocumentPickaxeRows() {
       검색키워드: String(row['검색키워드'] || ''),
       제외키워드: String(row['제외키워드'] || ''),
       고정값: String(row['고정값'] || ''),
+      금액선택방식: String(row['금액선택방식'] || ''),
       결과값: '',
     })
   }
@@ -877,6 +879,7 @@ function cleanNewDocumentPickaxeRows(rows) {
     검색키워드: String(row['검색키워드'] || ''),
     제외키워드: String(row['제외키워드'] || ''),
     고정값: String(row['고정값'] || ''),
+    금액선택방식: String(row['금액선택방식'] || ''),
   })).filter((row) => row.항목)
 }
 
@@ -978,8 +981,8 @@ function extractByParserRule(text, blocks, rule, type) {
     return date ? { value: normalizeDateValue(date[1]), matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText } : null
   }
   if (type === '1_2') {
-    const money = hit.sourceText.match(/([\d,]{6,})\s*원?/)
-    return money ? { value: money[1].replace(/,/g, ''), matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText } : null
+    const money = pickMoneyValue(hit.sourceText, rule)
+    return money ? { value: money, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText } : null
   }
   if (type === '1_3') {
     const phone = hit.sourceText.match(/0\d{1,2}[-.\s]\d{3,4}[-.\s]\d{4}/)
@@ -990,6 +993,17 @@ function extractByParserRule(text, blocks, rule, type) {
     return rate ? { value: rate, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText } : null
   }
   return null
+}
+
+function pickMoneyValue(sourceText, rule) {
+  const mode = String(rule['금액선택방식'] || '').trim()
+  const moneyPattern = /([\d,]{6,})\s*원?/g
+  if (mode === '공사비_괄호안금액') {
+    const parenMoney = [...String(sourceText || '').matchAll(/\(([\d,]{6,})\s*원?\)/g)]
+    if (parenMoney.length) return parenMoney[parenMoney.length - 1][1].replace(/,/g, '')
+  }
+  const first = moneyPattern.exec(String(sourceText || ''))
+  return first ? first[1].replace(/,/g, '') : ''
 }
 
 function findFirstAvailableHit(text, blocks, keywords, excludeKeywords, gap = 15) {
