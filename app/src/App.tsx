@@ -156,6 +156,76 @@ function valueToText(value: unknown) {
   return String(value)
 }
 
+function buildDisplayFormatMap(rules: StandardColumnRule[]) {
+  const map: Record<string, string> = {}
+  for (const rule of rules) {
+    const column = valueToText(rule.항목).trim()
+    const format = valueToText(rule.표시형식).trim()
+    if (column && format) map[column] = format
+  }
+  return map
+}
+
+function parseDisplayNumber(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  const text = valueToText(value).replace(/,/g, '').replace(/%/g, '').trim()
+  if (!text) return null
+  const normalized = text.match(/-?\d+(\.\d+)?/)?.[0]
+  if (!normalized) return null
+  const num = Number(normalized)
+  return Number.isFinite(num) ? num : null
+}
+
+function decimalPlacesFromFormat(format: string) {
+  const match = format.match(/\.([#0]+)/)
+  return match ? match[1].length : 0
+}
+
+function formatNumberWithCommas(num: number, decimals: number) {
+  return new Intl.NumberFormat('ko-KR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(num)
+}
+
+function formatDateByDisplayFormat(value: unknown, format: string) {
+  const raw = valueToText(value).trim()
+  if (!raw) return ''
+  const match = raw.match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/)
+  if (!match) return raw
+  const [, yyyy, mm, dd, hh, mi] = match
+  const dateText = `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`
+  if (!/[hH]:?m/i.test(format)) return dateText
+  const timeText = `${(hh ?? '0').padStart(2, '0')}:${(mi ?? '0').padStart(2, '0')}`
+  return `${dateText} ${timeText}`
+}
+
+function formatCellForDisplay(value: unknown, format: string | undefined) {
+  const raw = valueToText(value)
+  const fmt = valueToText(format).trim()
+  if (!fmt || raw.trim() === '') return raw
+
+  if (/^y{2,4}-m{2}-d{2}/i.test(fmt)) {
+    return formatDateByDisplayFormat(value, fmt)
+  }
+
+  if (fmt.includes('%')) {
+    const num = parseDisplayNumber(value)
+    if (num === null) return raw
+    const decimals = decimalPlacesFromFormat(fmt)
+    const pct = raw.includes('%') || Math.abs(num) > 1 ? num : num * 100
+    return `${formatNumberWithCommas(pct, decimals)}%`
+  }
+
+  if (/^[#,\.0]+$/.test(fmt)) {
+    const num = parseDisplayNumber(value)
+    if (num === null) return raw
+    return formatNumberWithCommas(num, decimalPlacesFromFormat(fmt))
+  }
+
+  return raw
+}
+
 function joinMemo(existing: unknown, memo: string) {
   const current = valueToText(existing).trim()
   if (!current) return memo
@@ -500,6 +570,7 @@ function App() {
   }, [finalRows, humanRows, preRows, rawRows, stage])
 
   const columns = useMemo(() => getColumns(stageRows, profiles, rules), [stageRows, profiles, rules])
+  const displayFormatMap = useMemo(() => buildDisplayFormatMap(rules), [rules])
   const jongmokOptions = useMemo(() => {
     const values = (settingRows.jongmokMap ?? [])
       .map((row) => valueToText(row['업종']).trim())
@@ -990,6 +1061,7 @@ function App() {
           columns={columns}
           rows={finalRows}
           tableMeta={tableMeta(finalRows.length, filteredRows.length, Math.min(finalRows.length, 200))}
+          displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
         />
       )
@@ -1000,6 +1072,7 @@ function App() {
           columns={columns}
           rows={visibleRows}
           tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
+          displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
         />
       )
@@ -1023,6 +1096,7 @@ function App() {
           setActiveJongmok={setJongmokFilter}
           finalGongoSet={finalGongoSet}
           tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
+          displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
         />
       )
@@ -1034,6 +1108,7 @@ function App() {
         rowLimit={rowLimit}
         setRowLimit={setRowLimit}
         tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
+        displayFormatMap={displayFormatMap}
         onRowOpen={setDetailRow}
       />
     )
@@ -1158,7 +1233,7 @@ function App() {
           ) : null}
         </aside>
       </section>
-      {detailRow ? <NoticeDetailModal row={detailRow} columns={columns} onClose={() => setDetailRow(null)} /> : null}
+      {detailRow ? <NoticeDetailModal row={detailRow} columns={columns} displayFormatMap={displayFormatMap} onClose={() => setDetailRow(null)} /> : null}
     </div>
   )
 
@@ -1367,6 +1442,7 @@ function CollectionView({
   rowLimit,
   setRowLimit,
   tableMeta,
+  displayFormatMap,
   onRowOpen,
 }: {
   columns: string[]
@@ -1374,6 +1450,7 @@ function CollectionView({
   rowLimit: number
   setRowLimit: (value: number) => void
   tableMeta: string
+  displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
 }) {
   return (
@@ -1389,7 +1466,7 @@ function CollectionView({
           <option value={500}>500행</option>
         </select>
       </div>
-      <DataTable columns={columns} rows={rows} emptyText="API 호출로 서버공고를 불러오세요." onRowClick={onRowOpen} tableId="main:collect" />
+      <DataTable columns={columns} rows={rows} emptyText="API 호출로 서버공고를 불러오세요." onRowClick={onRowOpen} tableId="main:collect" displayFormatMap={displayFormatMap} />
     </section>
   )
 }
@@ -1398,11 +1475,13 @@ function PreprocessView({
   columns,
   rows,
   tableMeta,
+  displayFormatMap,
   onRowOpen,
 }: {
   columns: string[]
   rows: NoticeRow[]
   tableMeta: string
+  displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
 }) {
   return (
@@ -1414,7 +1493,7 @@ function PreprocessView({
             <span>{tableMeta}</span>
           </div>
         </div>
-        <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} tableId="main:preprocess" />
+        <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} tableId="main:preprocess" displayFormatMap={displayFormatMap} />
       </section>
     </>
   )
@@ -1437,6 +1516,7 @@ function HumanView({
   setActiveJongmok,
   finalGongoSet,
   tableMeta,
+  displayFormatMap,
   onRowOpen,
 }: {
   columns: string[]
@@ -1455,6 +1535,7 @@ function HumanView({
   setActiveJongmok: (value: string) => void
   finalGongoSet: Set<string>
   tableMeta: string
+  displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
 }) {
   const jongmokGroups = useMemo(() => {
@@ -1555,7 +1636,7 @@ function HumanView({
             <span>{tableMeta}</span>
           </div>
         </div>
-        <DataTable columns={columns} rows={rows} emptyText="전처리 후 사람입력을 진행하세요." onRowClick={onRowOpen} tableId="main:human" />
+        <DataTable columns={columns} rows={rows} emptyText="전처리 후 사람입력을 진행하세요." onRowClick={onRowOpen} tableId="main:human" displayFormatMap={displayFormatMap} />
       </section>
     </>
   )
@@ -3555,11 +3636,13 @@ function OutputView({
   columns,
   rows,
   tableMeta,
+  displayFormatMap,
   onRowOpen,
 }: {
   columns: string[]
   rows: NoticeRow[]
   tableMeta: string
+  displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
 }) {
   return (
@@ -3570,7 +3653,7 @@ function OutputView({
           <span>{tableMeta}</span>
         </div>
       </div>
-      <DataTable columns={columns} rows={rows.slice(0, 200)} emptyText="최종분류를 실행하세요." onRowClick={onRowOpen} tableId="main:output" />
+      <DataTable columns={columns} rows={rows.slice(0, 200)} emptyText="최종분류를 실행하세요." onRowClick={onRowOpen} tableId="main:output" displayFormatMap={displayFormatMap} />
     </section>
   )
 }
@@ -3613,6 +3696,7 @@ function DataTable({
   selectColumnOptions = {},
   multiSelectColumnOptions = {},
   columnHelpMap = {},
+  displayFormatMap = {},
   expandableTextColumns = [],
   cellDisabled,
   onCellChange,
@@ -3628,6 +3712,7 @@ function DataTable({
   selectColumnOptions?: Record<string, string[]>
   multiSelectColumnOptions?: Record<string, string[]>
   columnHelpMap?: Record<string, string>
+  displayFormatMap?: Record<string, string>
   expandableTextColumns?: string[]
   cellDisabled?: (row: NoticeRow, col: string) => boolean
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
@@ -3794,6 +3879,8 @@ function DataTable({
                   const canExpandTextCell = editable && expandableTextColumnSet.has(col)
                   const isExpandedTextCell = canExpandTextCell && expandedTextCell === cellKey
                   const disabled = cellDisabled?.(row, col) ?? false
+                  const rawText = valueToText(row[col])
+                  const displayText = editable ? rawText : formatCellForDisplay(row[col], displayFormatMap[col])
                   return (
                   <td
                     key={col}
@@ -3804,7 +3891,7 @@ function DataTable({
                     col === '검증상태' ? `status-${valueToText(row[col])}` : '',
                   ].join(' ')}
                   style={columnStyle(col)}
-                  title={valueToText(row[col])}
+                  title={displayText === rawText ? rawText : `${displayText}\n원본: ${rawText}`}
                 >
                     {editable && standardColumnMode && CHECKBOX_COLUMNS.has(col) ? (
                       <label className="cell-checkbox" onClick={(event) => event.stopPropagation()} title={helpForColumn(col)}>
@@ -3878,7 +3965,7 @@ function DataTable({
                         rows={isExpandedTextCell ? 12 : 2}
                       />
                     ) : (
-                      <span className="cell-text">{valueToText(row[col])}</span>
+                      <span className="cell-text">{displayText}</span>
                     )}
                   </td>
                   )
@@ -3895,10 +3982,12 @@ function DataTable({
 function NoticeDetailModal({
   row,
   columns,
+  displayFormatMap,
   onClose,
 }: {
   row: NoticeRow
   columns: string[]
+  displayFormatMap: Record<string, string>
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState('추가')
@@ -4091,7 +4180,7 @@ function NoticeDetailModal({
               <label key={field} className={detailFieldClass(row, field, regionIssues)}>
                 <span>{field}</span>
                 <textarea
-                  value={valueToText(row[field])}
+                  value={formatCellForDisplay(row[field], displayFormatMap[field])}
                   readOnly
                   onFocus={() => {
                     setActiveLeftTab('공고문')
