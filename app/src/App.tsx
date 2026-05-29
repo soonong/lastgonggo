@@ -744,7 +744,7 @@ function App() {
     }
   }
 
-  function runBeforeNarashi() {
+  async function runBeforeNarashi() {
     if (!rawRows.length) {
       setStatus('수집 row가 없습니다. API 호출을 먼저 실행하세요.')
       return
@@ -756,16 +756,60 @@ function App() {
       return
     }
 
+    setLoading(true)
     setPreprocessProgress({ running: true, done: 0, total: targetRows.length, failed: 0, current: '곡괭이전나라시' })
-    const result = preprocessRows(targetRows, rules, preprocessSettings)
-    setPreRows(result.rows)
-    setHumanRows([])
-    setFinalRows([])
-    setPreStats(result.stats)
-    setStage('preprocess')
-    setStatus(`곡괭이전나라시 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건`)
-    setPreprocessProgress({ running: false, done: result.stats.total, total: targetRows.length, failed: result.stats.errors, current: '' })
-    addLog(`곡괭이전나라시 완료: 전체 ${result.stats.total}, 변경 ${result.stats.changed}, 확인 ${result.stats.review}, 오류 ${result.stats.errors}`)
+    addLog(`곡괭이전나라시 시작 — ${targetRows.length}건`)
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+
+    try {
+      const chunkSize = 50
+      const processedRows: NoticeRow[] = []
+      const stats: PipelineStats = { total: 0, changed: 0, review: 0, errors: 0 }
+
+      for (let start = 0; start < targetRows.length; start += chunkSize) {
+        const chunk = targetRows.slice(start, start + chunkSize)
+        const end = Math.min(start + chunk.length, targetRows.length)
+        setPreprocessProgress({
+          running: true,
+          done: start,
+          total: targetRows.length,
+          failed: stats.errors,
+          current: `곡괭이전나라시 ${start + 1}-${end}`,
+        })
+
+        const result = preprocessRows(chunk, rules, preprocessSettings)
+        processedRows.push(...result.rows)
+        stats.total += result.stats.total
+        stats.changed += result.stats.changed
+        stats.review += result.stats.review
+        stats.errors += result.stats.errors
+
+        setPreprocessProgress({
+          running: true,
+          done: end,
+          total: targetRows.length,
+          failed: stats.errors,
+          current: `곡괭이전나라시 ${start + 1}-${end}`,
+        })
+        await new Promise((resolve) => window.setTimeout(resolve, 16))
+      }
+
+      setPreRows(processedRows)
+      setHumanRows([])
+      setFinalRows([])
+      setPreStats(stats)
+      setStage('preprocess')
+      setStatus(`곡괭이전나라시 완료: ${stats.total}건, 확인 ${stats.review}건, 오류 ${stats.errors}건`)
+      setPreprocessProgress({ running: false, done: stats.total, total: targetRows.length, failed: stats.errors, current: '' })
+      addLog(`곡괭이전나라시 완료: 전체 ${stats.total}, 변경 ${stats.changed}, 확인 ${stats.review}, 오류 ${stats.errors}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setStatus(`곡괭이전나라시 오류: ${message}`)
+      setPreprocessProgress({ running: false, done: 0, total: targetRows.length, failed: 1, current: '' })
+      addLog(`곡괭이전나라시 오류: ${message}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function runPreprocess() {
