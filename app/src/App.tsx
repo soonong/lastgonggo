@@ -540,7 +540,6 @@ function App() {
   const [preStats, setPreStats] = useState<PipelineStats | null>(null)
   const [selectedGongo, setSelectedGongo] = useState('')
   const [draft, setDraft] = useState<Record<string, string>>({})
-  const [parserNote, setParserNote] = useState('')
   const [selectedRuleItem, setSelectedRuleItem] = useState('')
   const [ruleDraft, setRuleDraft] = useState<Record<string, string>>({})
   const [logs, setLogs] = useState<string[]>(['대기: API 호출을 실행하세요.'])
@@ -882,15 +881,9 @@ function App() {
       const result = await fetchA3Parser(gongo)
       setParserCache((prev) => ({ ...prev, [gongo]: result }))
       setDraft({ ...draft, ...result.fields })
-      setParserNote(
-        Object.entries(result.evidence)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join('\n\n'),
-      )
       setStatus(`A3 문서곡괭이 후보 ${Object.keys(result.fields).length}개 추출`)
       addLog(`A3 문서곡괭이 후보 ${Object.keys(result.fields).length}개: ${gongo}`)
     } catch (error) {
-      setParserNote(error instanceof Error ? error.message : String(error))
       setStatus(error instanceof Error ? error.message : String(error))
     } finally {
       setLoading(false)
@@ -1163,14 +1156,9 @@ function App() {
         <HumanView
           columns={columns}
           rows={visibleRows}
-          selectedGongo={selectedGongo}
-          setSelectedGongo={setSelectedGongo}
-          draft={draft}
-          setDraft={setDraft}
           onSave={saveHumanEdit}
           onFinalize={finalizeRows}
           onA3Parse={runA3ParserForSelected}
-          parserNote={parserNote}
           loading={loading}
           tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
           displayFormatMap={displayFormatMap}
@@ -1313,6 +1301,7 @@ function App() {
       {detailRow ? (
         <NoticeDetailModal
           row={detailRow}
+          rows={filteredRows}
           columns={columns}
           displayFormatMap={displayFormatMap}
           onSave={saveDetailRow}
@@ -1587,14 +1576,9 @@ function PreprocessView({
 function HumanView({
   columns,
   rows,
-  selectedGongo,
-  setSelectedGongo,
-  draft,
-  setDraft,
   onSave,
   onFinalize,
   onA3Parse,
-  parserNote,
   loading,
   tableMeta,
   displayFormatMap,
@@ -1602,14 +1586,9 @@ function HumanView({
 }: {
   columns: string[]
   rows: NoticeRow[]
-  selectedGongo: string
-  setSelectedGongo: (value: string) => void
-  draft: Record<string, string>
-  setDraft: (value: Record<string, string>) => void
   onSave: () => void
   onFinalize: () => void
   onA3Parse: () => void
-  parserNote: string
   loading: boolean
   tableMeta: string
   displayFormatMap: Record<string, string>
@@ -1617,11 +1596,11 @@ function HumanView({
 }) {
   return (
     <>
-      <section className="editor-panel">
+      <section className="table-section">
         <div className="section-head">
-          <div>
-            <h2>사람입력</h2>
-            <span>사람이 고친 값은 저장 후 필요한 컬럼만 재전처리</span>
+          <div className="section-title-line">
+            <h2>공고관리 대상</h2>
+            <span>{tableMeta}</span>
           </div>
           <div className="panel-actions">
             <button className="inline-action" type="button" onClick={onSave} disabled={!rows.length}>
@@ -1638,46 +1617,10 @@ function HumanView({
             </button>
           </div>
         </div>
-        <div className="editor-grid">
-          <label className="wide-field">
-            <span>공고 선택</span>
-            <select value={selectedGongo} onChange={(event) => setSelectedGongo(event.target.value)}>
-              {rows.map((row, index) => {
-                const gongo = valueToText(row['공고번호']) || `row-${index + 1}`
-                return (
-                  <option key={`${gongo}-${index}`} value={gongo}>
-                    {gongo} · {valueToText(row['공사명']).slice(0, 60)}
-                  </option>
-                )
-              })}
-            </select>
-          </label>
-          {humanEditFields.map((field) => (
-            <label key={field}>
-              <span>{field}</span>
-              <input
-                value={draft[field] ?? ''}
-                onChange={(event) => setDraft({ ...draft, [field]: event.target.value })}
-              />
-            </label>
-          ))}
-          <label className="wide-field">
-            <span>문서곡괭이 근거</span>
-            <textarea value={parserNote} readOnly placeholder="A3 문서곡괭이 실행 시 rule/source 근거가 표시됩니다." />
-          </label>
-        </div>
-      </section>
-      <section className="table-section">
-        <div className="section-head">
-          <div className="section-title-line">
-            <h2>사람입력 대상</h2>
-            <span>{tableMeta}</span>
-          </div>
-        </div>
         <DataTable
           columns={columns}
           rows={rows}
-          emptyText="전처리 후 사람입력을 진행하세요."
+          emptyText="전처리 후 공고관리 대상을 확인하세요."
           tableId="main:human"
           displayFormatMap={displayFormatMap}
           onCellDoubleClick={(row, col) => {
@@ -4038,12 +3981,14 @@ function DataTable({
 
 function NoticeDetailModal({
   row,
+  rows,
   columns,
   displayFormatMap,
   onSave,
   onClose,
 }: {
   row: NoticeRow
+  rows: NoticeRow[]
   columns: string[]
   displayFormatMap: Record<string, string>
   onSave: (row: NoticeRow) => void
@@ -4140,10 +4085,67 @@ function NoticeDetailModal({
     .filter((field, index, list) => list.indexOf(field) === index)
     .filter((field) => columnSet.has(field) || valueToText(draftRow[field]))
   const allFilled = columns.filter((col) => valueToText(draftRow[col]).trim() !== '').length
+  const selectedGongo = valueToText(draftRow['공고번호'])
+  const detailRows = useMemo(() => {
+    const seen = new Set<string>()
+    const ordered = [draftRow, ...rows]
+      .filter((item) => {
+        const key = valueToText(item['공고번호']) || JSON.stringify(item)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    return ordered
+  }, [draftRow, rows])
 
   return (
     <div className="detail-modal" role="dialog" aria-modal="true" aria-label="공고 상세">
       <div className="detail-modal__body">
+        <section className="detail-row-strip" aria-label="공고 목록">
+          <div className="detail-row-progress">
+            <strong>입력 진행률</strong>
+            <span className="detail-progress-track">
+              <span style={{ width: `${columns.length ? Math.round((allFilled / columns.length) * 100) : 0}%` }} />
+            </span>
+            <span>
+              {allFilled.toLocaleString()} / {columns.length.toLocaleString()}
+            </span>
+          </div>
+          <div className="detail-row-table-wrap">
+            <table className="detail-row-table">
+              <colgroup>
+                {columns.map((col) => (
+                  <col key={col} style={{ width: defaultColumnWidth(col) }} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col}>{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {detailRows.map((item, index) => {
+                  const isSelected = selectedGongo && valueToText(item['공고번호']) === selectedGongo
+                  return (
+                    <tr
+                      key={`${valueToText(item['공고번호']) || 'row'}-${index}`}
+                      className={isSelected ? 'selected-row' : ''}
+                      onClick={() => setDraftRow(item)}
+                    >
+                      {columns.map((col) => (
+                        <td key={col} title={valueToText(item[col])}>
+                          <span>{formatCellForDisplay(item[col], displayFormatMap[col])}</span>
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section className="detail-left">
           <header className="detail-header">
             <div>

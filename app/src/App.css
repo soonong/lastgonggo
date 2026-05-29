@@ -2272,6 +2272,7 @@ td.status-오류 {
 
 .detail-modal__body {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-columns: minmax(0, 1.9fr) minmax(360px, 0.9fr);
   height: 100%;
   overflow: hidden;
@@ -2279,6 +2280,86 @@ td.status-오류 {
   border: 1px solid #bfccd9;
   border-radius: 6px;
   box-shadow: 0 20px 70px rgba(15, 23, 42, 0.35);
+}
+
+.detail-row-strip {
+  grid-column: 1 / -1;
+  min-width: 0;
+  background: #ffffff;
+  border-bottom: 1px solid #d9e1eb;
+}
+
+.detail-row-progress {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 12px;
+  color: #40556b;
+  border-bottom: 1px solid #e7edf3;
+  font-size: 12px;
+}
+
+.detail-row-progress strong {
+  color: #23384e;
+}
+
+.detail-progress-track {
+  position: relative;
+  width: 220px;
+  height: 7px;
+  overflow: hidden;
+  background: #e9eef5;
+  border-radius: 999px;
+}
+
+.detail-progress-track span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #3b6ea8;
+  border-radius: inherit;
+}
+
+.detail-row-table-wrap {
+  height: 104px;
+  overflow: auto;
+  scrollbar-gutter: stable both-edges;
+}
+
+.detail-row-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.detail-row-table th,
+.detail-row-table td {
+  height: 36px;
+  padding: 6px 10px;
+  overflow: hidden;
+  border-right: 1px solid #e2e9f1;
+  border-bottom: 1px solid #e2e9f1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-row-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: #364b62;
+  background: #edf2f7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.detail-row-table tr {
+  cursor: pointer;
+}
+
+.detail-row-table tr.selected-row td {
+  background: #fff4bd;
 }
 
 .detail-left,
