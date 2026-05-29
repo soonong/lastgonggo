@@ -557,6 +557,8 @@ function App() {
     current: '',
   })
   const stopPreprocessRef = useRef(false)
+  const preprocessImportInputRef = useRef<HTMLInputElement | null>(null)
+  const humanImportInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     async function boot() {
@@ -1011,6 +1013,45 @@ function App() {
     addLog(`엑셀 출력: ${filteredRows.length}건`)
   }
 
+  async function exportStageCsv(target: 'preprocess' | 'human') {
+    const rows = target === 'preprocess' ? preRows : humanRows
+    if (!rows.length) return
+    const suffix = target === 'preprocess' ? '입찰공고_전처리_테스트' : '공고관리_테스트'
+    const exportColumns = columnsForRows(rows, columns)
+    const today = new Date().toISOString().slice(0, 10)
+    const { filename, csv } = exportCsv(rows, exportColumns, `${today}_${suffix}.csv`)
+    try {
+      const saved = await saveCsvExport(filename, csv)
+      setStatus(`${target === 'preprocess' ? '전처리' : '공고관리'} 내보내기 완료: ${saved.filename}`)
+      addLog(`${target === 'preprocess' ? '전처리' : '공고관리'} 테스트 CSV 저장: ${saved.path}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setStatus(`브라우저 다운로드 완료, 서버 저장 실패: ${message}`)
+      addLog(`테스트 CSV 서버 저장 실패: ${message}`)
+    }
+  }
+
+  async function importStageCsv(target: 'preprocess' | 'human', event: ReactChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const text = await file.text()
+    const importedRows = parseCsvUpload(text)
+    if (target === 'preprocess') {
+      setPreRows(importedRows)
+      setPreStats(null)
+      setStage('preprocess')
+    } else {
+      setHumanRows(importedRows)
+      setSelectedGongo('')
+      setStage('human')
+    }
+    setDetailRow(null)
+    setPreprocessProgress({ running: false, done: importedRows.length, total: importedRows.length, failed: 0, current: '' })
+    setStatus(`${target === 'preprocess' ? '전처리' : '공고관리'} 테스트 가져오기: ${importedRows.length.toLocaleString()}건`)
+    addLog(`${target === 'preprocess' ? '전처리' : '공고관리'} 테스트 CSV 가져오기: ${file.name} ${importedRows.length}건`)
+  }
+
   function addLog(message: string) {
     const now = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     setLogs((prev) => [`${now} ${message}`, ...prev].slice(0, 80))
@@ -1148,6 +1189,8 @@ function App() {
           tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
           displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
+          onExportCsv={() => exportStageCsv('preprocess')}
+          onImportCsv={() => preprocessImportInputRef.current?.click()}
         />
       )
     }
@@ -1163,6 +1206,8 @@ function App() {
           tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
           displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
+          onExportCsv={() => exportStageCsv('human')}
+          onImportCsv={() => humanImportInputRef.current?.click()}
         />
       )
     }
@@ -1308,6 +1353,20 @@ function App() {
           onClose={() => setDetailRow(null)}
         />
       ) : null}
+      <input
+        ref={preprocessImportInputRef}
+        className="hidden-file-input"
+        type="file"
+        accept=".csv,text/csv"
+        onChange={(event) => importStageCsv('preprocess', event)}
+      />
+      <input
+        ref={humanImportInputRef}
+        className="hidden-file-input"
+        type="file"
+        accept=".csv,text/csv"
+        onChange={(event) => importStageCsv('human', event)}
+      />
     </div>
   )
 
@@ -1551,12 +1610,16 @@ function PreprocessView({
   tableMeta,
   displayFormatMap,
   onRowOpen,
+  onExportCsv,
+  onImportCsv,
 }: {
   columns: string[]
   rows: NoticeRow[]
   tableMeta: string
   displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
+  onExportCsv: () => void
+  onImportCsv: () => void
 }) {
   return (
     <>
@@ -1565,6 +1628,16 @@ function PreprocessView({
           <div className="section-title-line">
             <h2>전처리 결과</h2>
             <span>{tableMeta}</span>
+          </div>
+          <div className="panel-actions">
+            <button className="inline-action" type="button" onClick={onExportCsv} disabled={!rows.length}>
+              <FileDown size={16} />
+              테스트 내보내기
+            </button>
+            <button className="inline-action" type="button" onClick={onImportCsv}>
+              <CloudDownload size={16} />
+              테스트 가져오기
+            </button>
           </div>
         </div>
         <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} tableId="main:preprocess" displayFormatMap={displayFormatMap} />
@@ -1583,6 +1656,8 @@ function HumanView({
   tableMeta,
   displayFormatMap,
   onRowOpen,
+  onExportCsv,
+  onImportCsv,
 }: {
   columns: string[]
   rows: NoticeRow[]
@@ -1593,6 +1668,8 @@ function HumanView({
   tableMeta: string
   displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
+  onExportCsv: () => void
+  onImportCsv: () => void
 }) {
   return (
     <>
@@ -1603,6 +1680,14 @@ function HumanView({
             <span>{tableMeta}</span>
           </div>
           <div className="panel-actions">
+            <button className="inline-action" type="button" onClick={onExportCsv} disabled={!rows.length}>
+              <FileDown size={16} />
+              테스트 내보내기
+            </button>
+            <button className="inline-action" type="button" onClick={onImportCsv}>
+              <CloudDownload size={16} />
+              테스트 가져오기
+            </button>
             <button className="inline-action" type="button" onClick={onSave} disabled={!rows.length}>
               <Save size={16} />
               저장/재전처리
