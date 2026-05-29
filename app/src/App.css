@@ -236,12 +236,11 @@ textarea:focus {
 }
 
 .human-jongmok-select {
-  position: relative;
   display: grid;
-  grid-template-columns: auto 260px;
+  grid-template-columns: auto minmax(260px, 360px);
   align-items: center;
   gap: 6px;
-  flex: 0 0 auto;
+  flex: 0 1 430px;
 }
 
 .human-jongmok-select > span {
@@ -251,12 +250,8 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.human-jongmok-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: flex-start;
-  width: 260px;
+.human-jongmok-native {
+  width: 100%;
   height: 32px;
   padding: 0 10px;
   color: #10243a;
@@ -264,86 +259,6 @@ textarea:focus {
   border: 1px solid #b9c8d8;
   border-radius: 4px;
   font-size: 13px;
-}
-
-.human-jongmok-button strong {
-  flex: 1;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.human-jongmok-button svg {
-  flex: 0 0 auto;
-  color: #2f8f5b;
-}
-
-.human-jongmok-button svg:last-child {
-  color: #52677d;
-}
-
-.human-jongmok-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 38px;
-  z-index: 30;
-  width: 260px;
-  max-height: 470px;
-  overflow: auto;
-  padding: 0;
-  background: #ffffff;
-  border: 1px solid #c9d4df;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
-}
-
-.human-jongmok-menu button {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  height: 28px;
-  padding: 0 10px;
-  color: #172b40;
-  background: #ffffff;
-  border: 0;
-  border-radius: 0;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-}
-
-.human-jongmok-menu button:hover,
-.human-jongmok-menu button.selected {
-  background: #eaf2fb;
-}
-
-.human-jongmok-group-title {
-  height: 28px;
-  padding: 6px 10px 0;
-  color: #172b40;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.check-slot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  color: #35a66a;
-}
-
-.option-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.option-count {
-  flex: 0 0 auto;
-  color: #52677d;
 }
 
 .toolbar-field span {
@@ -2505,7 +2420,7 @@ td.status-오류 {
 
 .detail-left {
   display: grid;
-  grid-template-rows: auto 40px minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr);
   border-right: 1px solid #d9e1eb;
 }
 
@@ -2587,7 +2502,7 @@ td.status-오류 {
   position: sticky;
   right: 0;
   display: grid;
-  grid-template-columns: 16px minmax(120px, 220px) auto;
+  grid-template-columns: 16px minmax(120px, 220px) auto auto;
   align-items: center;
   gap: 5px;
   margin-left: auto;
@@ -2607,11 +2522,20 @@ td.status-오류 {
 }
 
 .detail-doc-search span {
-  min-width: 26px;
+  min-width: 36px;
   color: #52677e;
   font-size: 12px;
   font-weight: 900;
   text-align: right;
+}
+
+.detail-doc-search button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: #52677e;
+  background: transparent;
+  border: 0;
 }
 
 .detail-doc {
@@ -2719,9 +2643,15 @@ td.status-오류 {
   box-shadow: 0 0 0 1px rgba(173, 124, 0, 0.18);
 }
 
+.notice-text-highlight mark.active {
+  color: #ffffff;
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.24);
+}
+
 .detail-right {
   display: grid;
-  grid-template-rows: 38px 38px minmax(0, 1fr);
+  grid-template-rows: 38px minmax(0, 1fr);
   background: #ffffff;
 }
 
@@ -2746,6 +2676,19 @@ td.status-오류 {
   min-height: 0;
   overflow: auto;
   padding: 10px 10px 64px;
+}
+
+.detail-field-section {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6edf4;
+}
+
+.detail-field-section h3 {
+  margin: 0 0 8px;
+  color: #1f3852;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .detail-field {

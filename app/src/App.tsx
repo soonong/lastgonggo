@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle2,
-  Check,
   ClipboardCheck,
   CloudDownload,
   Database,
@@ -660,9 +659,9 @@ function App() {
   const visibleRows = filteredRows.slice(0, rowLimit)
   useEffect(() => {
     if (stage !== 'human') return
-    const available = new Set(filteredRows.map((row, index) => rowKey(row, index)))
+    const available = new Set(humanRows.map((row, index) => rowKey(row, index)))
     setSelectedHumanKeys((prev) => prev.filter((key) => available.has(key)))
-  }, [filteredRows, stage])
+  }, [humanRows, stage])
   const emptyCells = useMemo(() => {
     if (!stageRows.length || !columns.length) return 0
     let count = 0
@@ -929,7 +928,7 @@ function App() {
   function selectedHumanRows() {
     const selected = new Set(selectedHumanKeys)
     if (!selected.size) return []
-    return filteredRows.filter((row, index) => selected.has(rowKey(row, index)))
+    return humanRows.filter((row, index) => selected.has(rowKey(row, index)))
   }
 
   function deleteSelectedHumanRows() {
@@ -1466,66 +1465,32 @@ function HumanJongmokDropdown({
   emptyLabel: string
   onChange: (value: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const selected = options.find((item) => item.value === value)
   const knownGroups = ['일반건설', '기타건설', '전문건설', '미확인']
   const extraGroups = Array.from(new Set(options.map((item) => item.group).filter((group) => !knownGroups.includes(group))))
     .sort((a, b) => a.localeCompare(b, 'ko'))
   const groups = [...knownGroups, ...extraGroups]
     .map((group) => ({ group, rows: options.filter((item) => item.group === group) }))
     .filter((group) => group.rows.length)
-  const selectedLabel = selected
-    ? selected.count > 0
-      ? `${selected.value} ${selected.count.toLocaleString()}건`
-      : `${selected.value} (완료)`
-    : emptyLabel
 
   return (
     <div className="human-jongmok-select">
       <span>종목</span>
-      <button type="button" className="human-jongmok-button" onClick={() => setOpen((current) => !current)}>
-        {selected ? <Check size={14} /> : null}
-        <strong>{selectedLabel}</strong>
-        <ChevronDown size={15} />
-      </button>
-      {open ? (
-        <div className="human-jongmok-menu">
-          <button
-            type="button"
-            className={!value ? 'selected' : ''}
-            onClick={() => {
-              onChange('')
-              setOpen(false)
-            }}
-          >
-            <span className="option-label">— 종목 선택 —</span>
-          </button>
-          {groups.map(({ group, rows }) => (
-            <div key={group} className="human-jongmok-group">
-              <div className="human-jongmok-group-title">— {group} —</div>
-              {rows.map((item) => {
-                const isSelected = item.value === value
-                const doneOnly = item.count === 0 && item.moved > 0
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    className={isSelected ? 'selected' : ''}
-                    onClick={() => {
-                      onChange(item.value)
-                      setOpen(false)
-                    }}
-                  >
-                    <span className="check-slot">{isSelected || doneOnly ? <Check size={14} /> : null}</span>
-                    <span className="option-label">{item.value}</span>
-                    <span className="option-count">{doneOnly ? '완료' : item.count.toLocaleString()}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <select className="human-jongmok-native" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">{emptyLabel}</option>
+        {groups.map(({ group, rows }) => (
+          <optgroup key={group} label={`— ${group} —`}>
+            {rows.map((item) => {
+              const doneOnly = item.count === 0 && item.moved > 0
+              const label = doneOnly ? `✓ ${item.value} (완료)` : `${item.value} ${item.count.toLocaleString()}건`
+              return (
+                <option key={item.value} value={item.value}>
+                  {label}
+                </option>
+              )
+            })}
+          </optgroup>
+        ))}
+      </select>
     </div>
   )
 }
@@ -4236,6 +4201,47 @@ function DataTable({
   )
 }
 
+type DetailSectionSpec = {
+  title: string
+  fields: string[]
+}
+
+const detailTabSections: Record<string, DetailSectionSpec[]> = {
+  추가: [
+    { title: '공사현장', fields: ['공사현장'] },
+    { title: '협정 상세', fields: ['공동도급형태', '지역의무비율', '최소참여비율', '협정업체수', '추정금액', '대표사_최소비율'] },
+    { title: '특수조건', fields: ['특수조건0', '특수조건1', '특수조건2', '특수조건3', '특수실적', '공고확인', '참가자격'] },
+  ],
+  종목: [
+    { title: '종목 기본', fields: ['일반_기타_전문', '종목', '전문건설_주력분야', '단독평가종목', '종목_모두보유'] },
+    { title: '종목 평가', fields: ['종목세부JSON', '평가기준금액', '종목만점실적', '실적평가기간', '동일실적_평가여부'] },
+  ],
+  기본: [
+    { title: '공사 정보', fields: ['공사명', '공고번호', '발주처', '종목', '지역제한'] },
+    { title: '금액 정보', fields: ['기초금액', '추정가격', 'A값', '순공사원가'] },
+    { title: '투찰 정보', fields: ['난이도계수', '투찰율', '예가범위'] },
+    { title: '일정 정보', fields: ['현설일', '등록마감일', '협정마감일', '투찰시작일', '투찰마감일', '입찰일', '입력일'] },
+    { title: '심사 정보', fields: ['입찰방식', '적격발주처', '원발주처', '적격평가기준_세부', '계약체결방법', '참여형태'] },
+  ],
+  기타: [
+    {
+      title: '평가·산출',
+      fields: ['평가기준금액', '기타경비기준율', '일반관리비기준율', '노무비기준율', '이윤기준율', '종목금액합계', '동일실적_평가여부', '주업종_적격평가비율', '공동도급산정_시평액', '적격심사기준_열번호', '등급공사', '참여불가_시평액', '협정불가_시평액', '참여불가_신용평가_대표사', '참여불가_신용평가_구성사', '예상투찰금액', '투찰율_투찰금액', '순공사_투찰금액', '순공사_입찰점수', '실적경영평가안함'],
+    },
+    {
+      title: '원가·세금',
+      fields: ['주공종_추정금액', '주공종_추정가격', '관급자설치_관급자재금액', '도급자설치_관급자재금액', '부가가치세', '주공종_부가가치세', '환경보전비', '국민건강보험료', '국민연금보험료', '고용보험료', '산재보험료', '노인장기요양보험료', '품질시험비', '퇴직공제부금비', '하도급대금지급보증수수료', '안전관리비', '산업안전보건관리비', '건산법적용여부'],
+    },
+    {
+      title: '기타 정보',
+      fields: ['대업종', '특수실적_공통', '상호진출여부', '상호진출_일반전문', '전문건설_주력분야', '입찰업무구분', '내역입찰', '공동도급_지역제한', '의무공동도급지역', 'pq_접수마감일', '입찰보증금_납부여부', '입찰보증금_납부처', '실적심사신청서_접수방식', '실적심사신청서_접수마감일', '공고집행관', '공고집행관_전화번호', '공고담당자', '공고담당자_전화번호', '기초금액_발표전', '참가신청여부', '자동수집여부', '참조공고번호', '특수실적', '공고확인', '발주처코드', '상위_발주처코드', '검색용현장', '경력기술자'],
+    },
+  ],
+  적격심사기준: [
+    { title: '적격심사 매칭', fields: ['적격발주처', '원발주처', '적격평가기준_세부', '적격_1차상태', '적격_1차사유', '적격_2차상태', '적격_처치방법'] },
+  ],
+}
+
 function NoticeDetailModal({
   row,
   rows,
@@ -4255,13 +4261,15 @@ function NoticeDetailModal({
   const [activeTab, setActiveTab] = useState('추가')
   const [activeLeftTab, setActiveLeftTab] = useState('공고문')
   const [docSearch, setDocSearch] = useState('')
+  const [searchIndex, setSearchIndex] = useState(0)
   const [activeHighlight, setActiveHighlight] = useState('')
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [attachments, setAttachments] = useState<NoticeRow[]>([])
   const [attachmentStatus, setAttachmentStatus] = useState('')
   const [fileTabs, setFileTabs] = useState<Array<{ name: string; url: string; ext: string }>>([])
   const [qualificationRows, setQualificationRows] = useState<NoticeRow[]>([])
   const [qualificationStatus, setQualificationStatus] = useState('')
-  const tabs = ['추가', '종목', '기본', '기타', '첨부', '적격심사기준']
+  const tabs = ['추가', '종목', '기본', '기타', '첨부파일', '적격심사기준']
   const detailKey = valueToText(draftRow['적격평가기준_세부'])
   const constructionType = valueToText(draftRow['일반_기타_전문']) || '일반건설'
   const gongsanum = valueToText(draftRow['공고번호'])
@@ -4269,6 +4277,7 @@ function NoticeDetailModal({
   const docText = buildDetailDocText(draftRow)
   const highlightQuery = docSearch.trim() || activeHighlight.trim()
   const highlightCount = highlightQuery ? countMatches(docText, highlightQuery) : 0
+  const currentSearchIndex = docSearch.trim() && highlightCount ? (searchIndex % highlightCount) + 1 : 0
 
   useEffect(() => {
     setDraftRow(row)
@@ -4277,6 +4286,44 @@ function NoticeDetailModal({
   function changeDraftField(field: string, value: string) {
     setDraftRow((prev) => ({ ...prev, [field]: value }))
   }
+
+  function clearSearch() {
+    setDocSearch('')
+    setSearchIndex(0)
+    setActiveHighlight('')
+    searchInputRef.current?.blur()
+  }
+
+  function moveSearch(direction: 1 | -1) {
+    if (!docSearch.trim() || !highlightCount) return
+    setSearchIndex((current) => (current + direction + highlightCount) % highlightCount)
+  }
+
+  useEffect(() => {
+    if (!docSearch.trim()) setSearchIndex(0)
+  }, [docSearch])
+
+  useEffect(() => {
+    setDocSearch('')
+    setSearchIndex(0)
+    setActiveHighlight('')
+  }, [activeLeftTab])
+
+  useEffect(() => {
+    function handleSearchShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+      }
+      if (event.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        event.preventDefault()
+        clearSearch()
+      }
+    }
+    window.addEventListener('keydown', handleSearchShortcut)
+    return () => window.removeEventListener('keydown', handleSearchShortcut)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -4300,7 +4347,7 @@ function NoticeDetailModal({
 
   useEffect(() => {
     let alive = true
-    if (activeTab !== '첨부') return
+    if (activeTab !== '첨부파일') return
     const cached = parseAttachmentRows(draftRow)
     if (cached.length) {
       setAttachments(cached)
@@ -4330,17 +4377,15 @@ function NoticeDetailModal({
   }, [activeTab, draftRow, gongsanum])
 
   const columnSet = new Set(columns)
-  const fieldGroups: Record<string, string[]> = {
-    추가: ['공사현장', '협정상세', '특수조건', '공고확인', '공고확인_내용', '특수실적', '특수실적_공통', '특수실적_내용'],
-    종목: ['종목', '전문건설_주력분야', '단독평가종목', '종목세부JSON', '일반_기타_전문', '종목_모두보유'],
-    기본: ['공고번호', '공사명', '발주처', '입력일', '입찰방식', '지역제한', '기초금액', '추정가격', '추정금액', 'A값'],
-    기타: columns.filter((col) => !col.startsWith('_')).slice(0, 80),
-    첨부: ['공고번호', '첨부파일', '파싱용공고문', '웹용공고문'],
-    적격심사기준: ['적격발주처', '원발주처', '적격평가기준_세부', '적격_1차상태', '적격_1차사유', '적격_2차상태', '적격_처치방법'],
-  }
-  const visibleFields = (fieldGroups[activeTab] ?? [])
-    .filter((field, index, list) => list.indexOf(field) === index)
-    .filter((field) => columnSet.has(field) || valueToText(draftRow[field]))
+  const visibleSections = (detailTabSections[activeTab] ?? [])
+    .map((section) => ({
+      ...section,
+      fields: section.fields
+        .filter((field, index, list) => list.indexOf(field) === index)
+        .filter((field) => columnSet.has(field) || valueToText(draftRow[field])),
+    }))
+    .filter((section) => section.fields.length)
+  const visibleFields = visibleSections.flatMap((section) => section.fields)
   const allFilled = columns.filter((col) => valueToText(draftRow[col]).trim() !== '').length
   const selectedGongo = valueToText(draftRow['공고번호'])
   const detailRows = useMemo(() => {
@@ -4404,19 +4449,6 @@ function NoticeDetailModal({
           </div>
         </section>
         <section className="detail-left">
-          <header className="detail-header">
-            <div>
-              <strong>{valueToText(draftRow['공고번호']) || '공고번호 없음'}</strong>
-              <h2>{valueToText(draftRow['공사명']) || '공사명 없음'}</h2>
-              <p>
-                {valueToText(draftRow['발주처']) || '발주처 없음'} · {valueToText(draftRow['입력일']) || '입력일 없음'}
-              </p>
-            </div>
-            <button type="button" onClick={onClose} aria-label="닫기">
-              <X size={17} />
-            </button>
-          </header>
-
           <div className="detail-left__tabbar">
             <button className={activeLeftTab === '공고문' ? 'active' : ''} type="button" onClick={() => setActiveLeftTab('공고문')}>
               공고문
@@ -4428,8 +4460,28 @@ function NoticeDetailModal({
             ))}
             <label className="detail-doc-search">
               <Search size={14} />
-              <input value={docSearch} onChange={(event) => setDocSearch(event.target.value)} placeholder="공고문 검색" />
-              <span>{highlightQuery ? `${highlightCount}` : '0'}</span>
+              <input
+                ref={searchInputRef}
+                value={docSearch}
+                onChange={(event) => setDocSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    moveSearch(event.shiftKey ? -1 : 1)
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    clearSearch()
+                  }
+                }}
+                placeholder="공고문 검색 (Enter)"
+              />
+              <span>{docSearch.trim() ? `${currentSearchIndex}/${highlightCount}` : ''}</span>
+              {docSearch.trim() ? (
+                <button type="button" onClick={clearSearch} aria-label="검색 해제">
+                  <X size={13} />
+                </button>
+              ) : null}
             </label>
           </div>
 
@@ -4437,7 +4489,7 @@ function NoticeDetailModal({
             {activeLeftTab !== '공고문' ? (
               <FilePreviewTab file={fileTabs.find((file) => file.name === activeLeftTab)} />
             ) : highlightQuery ? (
-              <HighlightedDocument text={docText} query={highlightQuery} />
+              <HighlightedDocument text={docText} query={highlightQuery} activeIndex={docSearch.trim() ? searchIndex : -1} />
             ) : valueToText(draftRow['공고본문_HTML']) ? (
               <div className="notice-html" dangerouslySetInnerHTML={{ __html: valueToText(draftRow['공고본문_HTML']) }} />
             ) : (
@@ -4471,10 +4523,6 @@ function NoticeDetailModal({
         </section>
 
         <section className="detail-right">
-          <div className="detail-right__summary">
-            <span>채워진 컬럼 {allFilled.toLocaleString()}</span>
-            <span>전체 컬럼 {columns.length.toLocaleString()}</span>
-          </div>
           <div className="detail-right__tabs">
             {tabs.map((tabName) => (
               <button
@@ -4489,7 +4537,7 @@ function NoticeDetailModal({
           </div>
           <div className="detail-right__content">
             {regionIssues.length ? <RegionIssueBanner issues={regionIssues} /> : null}
-            {activeTab === '첨부' ? (
+            {activeTab === '첨부파일' ? (
               <AttachmentPanel
                 status={attachmentStatus}
                 files={attachments}
@@ -4503,24 +4551,29 @@ function NoticeDetailModal({
                   setActiveLeftTab(next.name)
                 }}
               />
-            ) : visibleFields.map((field) => (
-              <label key={field} className={detailFieldClass(draftRow, field, regionIssues)}>
-                <span>{field}</span>
-                <textarea
-                  value={valueToText(draftRow[field])}
-                  placeholder={formatCellForDisplay(draftRow[field], displayFormatMap[field])}
-                  onChange={(event) => changeDraftField(field, event.target.value)}
-                  onFocus={() => {
-                    setActiveLeftTab('공고문')
-                    setActiveHighlight(valueToText(draftRow[field]) || field)
-                  }}
-                />
-              </label>
+            ) : visibleSections.map((section) => (
+              <section key={section.title} className="detail-field-section">
+                <h3>{section.title}</h3>
+                {section.fields.map((field) => (
+                  <label key={field} className={detailFieldClass(draftRow, field, regionIssues)}>
+                    <span>{field}</span>
+                    <textarea
+                      value={valueToText(draftRow[field])}
+                      placeholder={formatCellForDisplay(draftRow[field], displayFormatMap[field])}
+                      onChange={(event) => changeDraftField(field, event.target.value)}
+                      onFocus={() => {
+                        setActiveLeftTab('공고문')
+                        setActiveHighlight(valueToText(draftRow[field]) || field)
+                      }}
+                    />
+                  </label>
+                ))}
+              </section>
             ))}
             {activeTab === '적격심사기준' ? (
               <QualificationPanel detailKey={detailKey} status={qualificationStatus} rows={qualificationRows} />
             ) : null}
-            {activeTab !== '첨부' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
+            {activeTab !== '첨부파일' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
             <div className="detail-savebar">
               <button
                 className="primary"
@@ -4608,13 +4661,20 @@ function stripHtml(html: string) {
     .trim()
 }
 
-function HighlightedDocument({ text, query }: { text: string; query: string }) {
+function HighlightedDocument({ text, query, activeIndex = -1 }: { text: string; query: string; activeIndex?: number }) {
   const parts = splitHighlightParts(text || '공고문 텍스트가 없습니다.', query)
+  let hitIndex = -1
   return (
     <div className="notice-text-highlight">
-      {parts.map((part, index) =>
-        part.hit ? <mark key={`${part.text}-${index}`}>{part.text}</mark> : <span key={`${part.text}-${index}`}>{part.text}</span>,
-      )}
+      {parts.map((part, index) => {
+        if (!part.hit) return <span key={`${part.text}-${index}`}>{part.text}</span>
+        hitIndex += 1
+        return (
+          <mark key={`${part.text}-${index}`} className={hitIndex === activeIndex ? 'active' : ''}>
+            {part.text}
+          </mark>
+        )
+      })}
     </div>
   )
 }
