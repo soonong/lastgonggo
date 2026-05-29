@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle2,
+  Check,
   ClipboardCheck,
   CloudDownload,
   Database,
@@ -134,22 +135,6 @@ const priorityColumns = [
 const hiddenMainColumns = new Set(['공고본문', '공고본문_HTML', '문서곡괭이근거'])
 const conservativeKeepApiColumns = new Set(['공고번호', '공사명', '발주처', '입력일', '지역제한', '종목', '추정가격', '기초금액', '추정금액'])
 
-const humanEditFields = [
-  '공고확인',
-  '특수조건',
-  '특수실적',
-  '특수실적_공통',
-  '특수실적_내용',
-  '지역제한',
-  '공사현장',
-  '종목',
-  '전문건설_주력분야',
-  '단독평가종목',
-  '참가자격',
-  '원발주처',
-  '적격평가기준_세부',
-]
-
 function valueToText(value: unknown) {
   if (value === null || value === undefined) return ''
   if (typeof value === 'object') return JSON.stringify(value)
@@ -172,6 +157,10 @@ function rowJongmokTokens(row: NoticeRow) {
   return splitJongmokTokens(row['종목'])
 }
 
+function rowKey(row: NoticeRow, index = 0) {
+  return valueToText(row['공고번호']) || valueToText(row.id) || `row-${index}`
+}
+
 function isHumanReviewCandidate(row: NoticeRow, targetJongmok: string, finalGongoSet: Set<string>) {
   const gongo = valueToText(row['공고번호'])
   if (gongo && finalGongoSet.has(gongo)) return false
@@ -181,7 +170,22 @@ function isHumanReviewCandidate(row: NoticeRow, targetJongmok: string, finalGong
   return tokens.includes(targetJongmok)
 }
 
-function buildHumanJongmokOptions(rows: NoticeRow[], finalGongoSet: Set<string>) {
+function buildJongmokGroupMap(jongmokMapRows: NoticeRow[]) {
+  const map = new Map<string, string>()
+  for (const row of jongmokMapRows) {
+    const group = valueToText(row['일반_기타_전문']).trim()
+    if (!group) continue
+    for (const key of ['업종', '주력업종', '상위업종', '대체업종']) {
+      splitJongmokTokens(row[key]).forEach((value) => {
+        if (value && !map.has(value)) map.set(value, group)
+      })
+    }
+  }
+  return map
+}
+
+function buildHumanJongmokOptions(rows: NoticeRow[], finalGongoSet: Set<string>, jongmokMapRows: NoticeRow[]) {
+  const groupMap = buildJongmokGroupMap(jongmokMapRows)
   const map = new Map<string, { value: string; count: number; moved: number }>()
   for (const row of rows) {
     const gongo = valueToText(row['공고번호'])
@@ -196,12 +200,17 @@ function buildHumanJongmokOptions(rows: NoticeRow[], finalGongoSet: Set<string>)
     }
   }
   return Array.from(map.values())
-    .sort((a, b) => b.count - a.count || b.moved - a.moved || a.value.localeCompare(b.value, 'ko'))
+    .sort((a, b) => a.value.localeCompare(b.value, 'ko'))
     .map((item) => ({
       value: item.value,
-      label: `${item.value} ${item.count.toLocaleString()}건${item.moved ? (item.count === 0 ? ' · 이관완료' : ` · ${item.moved.toLocaleString()}건 이관`) : ''}`,
+      label: item.value,
+      group: item.value === '종목 미확인' ? '미확인' : groupMap.get(item.value) || '기타',
+      count: item.count,
+      moved: item.moved,
     }))
 }
+
+type JongmokOption = ReturnType<typeof buildHumanJongmokOptions>[number]
 
 function buildDisplayFormatMap(rules: StandardColumnRule[]) {
   const map: Record<string, string> = {}
@@ -538,8 +547,7 @@ function App() {
   const [status, setStatus] = useState('앱 준비 중')
   const [, setHasModuleKey] = useState<boolean | null>(null)
   const [preStats, setPreStats] = useState<PipelineStats | null>(null)
-  const [selectedGongo, setSelectedGongo] = useState('')
-  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [selectedHumanKeys, setSelectedHumanKeys] = useState<string[]>([])
   const [selectedRuleItem, setSelectedRuleItem] = useState('')
   const [ruleDraft, setRuleDraft] = useState<Record<string, string>>({})
   const [logs, setLogs] = useState<string[]>(['대기: API 호출을 실행하세요.'])
@@ -623,12 +631,8 @@ function App() {
     () => new Set(finalRows.map((row) => valueToText(row['공고번호'])).filter(Boolean)),
     [finalRows],
   )
-  const humanReviewRows = useMemo(
-    () => humanRows.filter((row) => isHumanReviewCandidate(row, jongmokFilter, finalGongoSet)),
-    [finalGongoSet, humanRows, jongmokFilter],
-  )
   const jongmokOptions = useMemo(() => {
-    if (stage === 'human') return buildHumanJongmokOptions(humanRows, finalGongoSet)
+    if (stage === 'human') return buildHumanJongmokOptions(humanRows, finalGongoSet, settingRows.jongmokMap ?? [])
     const values = (settingRows.jongmokMap ?? [])
       .map((row) => valueToText(row['업종']).trim())
       .filter(Boolean)
@@ -654,6 +658,11 @@ function App() {
   }, [columns, dateFilter, finalGongoSet, jongmokFilter, search, stage, stageRows])
 
   const visibleRows = filteredRows.slice(0, rowLimit)
+  useEffect(() => {
+    if (stage !== 'human') return
+    const available = new Set(filteredRows.map((row, index) => rowKey(row, index)))
+    setSelectedHumanKeys((prev) => prev.filter((key) => available.has(key)))
+  }, [filteredRows, stage])
   const emptyCells = useMemo(() => {
     if (!stageRows.length || !columns.length) return 0
     let count = 0
@@ -664,27 +673,6 @@ function App() {
     }
     return count
   }, [columns, stageRows])
-
-  const selectedRow = useMemo(
-    () => humanReviewRows.find((row) => valueToText(row['공고번호']) === selectedGongo) ?? humanReviewRows[0],
-    [humanReviewRows, selectedGongo],
-  )
-
-  useEffect(() => {
-    if (!selectedRow) {
-      setDraft({})
-      return
-    }
-    if (valueToText(selectedRow['공고번호']) !== selectedGongo) {
-      setSelectedGongo(valueToText(selectedRow['공고번호']))
-    }
-    setDraft(
-      humanEditFields.reduce<Record<string, string>>((acc, field) => {
-        acc[field] = valueToText(selectedRow[field])
-        return acc
-      }, {}),
-    )
-  }, [selectedRow, selectedGongo])
 
   useEffect(() => {
     if (!detailRow) return
@@ -721,6 +709,7 @@ function App() {
       setPreRows([])
       setHumanRows([])
       setFinalRows([])
+      setSelectedHumanKeys([])
       setPreStats(null)
       setFormatIssues(nextFormatIssues)
       setSource(data.source)
@@ -797,6 +786,7 @@ function App() {
       setPreRows(processedRows)
       setHumanRows([])
       setFinalRows([])
+      setSelectedHumanKeys([])
       setPreStats(stats)
       setStage('preprocess')
       setStatus(`곡괭이전나라시 완료: ${stats.total}건, 확인 ${stats.review}건, 오류 ${stats.errors}건`)
@@ -889,6 +879,7 @@ function App() {
     setPreRows(result.rows)
     setHumanRows(result.rows)
     setFinalRows([])
+    setSelectedHumanKeys([])
     setPreStats(result.stats)
     setStage('preprocess')
     setStatus(`문서곡괭이질 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건, A3 실패 ${failed}건`)
@@ -903,44 +894,25 @@ function App() {
   }
 
   function saveHumanEdit() {
-    if (!selectedRow) return
-    const gongo = valueToText(selectedRow['공고번호'])
-    const updated = humanRows.map((row) => {
-      if (valueToText(row['공고번호']) !== gongo) return row
-      return reprocessHumanRow({ ...row, ...draft }, rules, preprocessSettings)
-    })
-    setHumanRows(updated)
-    setStatus(`사람입력 저장 및 필요한 컬럼 재전처리: ${gongo}`)
-    addLog(`사람입력 저장/재전처리: ${gongo}`)
-  }
-
-  async function runA3ParserForSelected() {
-    if (!selectedRow) return
-    const gongo = valueToText(selectedRow['공고번호'])
-    if (!gongo) {
-      setStatus('A3 문서곡괭이: 공고번호가 없습니다.')
+    const targets = selectedHumanRows()
+    if (!targets.length) {
+      setStatus('재전처리할 공고를 체크하세요.')
       return
     }
-    setLoading(true)
-    setStatus(`A3 문서곡괭이 실행 중: ${gongo}`)
-    try {
-      const result = await fetchA3Parser(gongo)
-      setParserCache((prev) => ({ ...prev, [gongo]: result }))
-      setDraft({ ...draft, ...result.fields })
-      setStatus(`A3 문서곡괭이 후보 ${Object.keys(result.fields).length}개 추출`)
-      addLog(`A3 문서곡괭이 후보 ${Object.keys(result.fields).length}개: ${gongo}`)
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setLoading(false)
-    }
+    const targetKeys = new Set(targets.map((row, index) => rowKey(row, index)))
+    const updated = humanRows.map((row) => {
+      if (!targetKeys.has(rowKey(row))) return row
+      return reprocessHumanRow(row, rules, preprocessSettings)
+    })
+    setHumanRows(updated)
+    setStatus(`선택 공고 재전처리 완료: ${targets.length.toLocaleString()}건`)
+    addLog(`공고관리 선택 재전처리: ${targets.length}건`)
   }
 
   function finalizeRows() {
-    const base = humanRows.length ? humanRows : preRows
-    const targetRows = base.filter((row) => isHumanReviewCandidate(row, jongmokFilter, finalGongoSet))
+    const targetRows = selectedHumanRows()
     if (!targetRows.length) {
-      setStatus(jongmokFilter ? `${jongmokFilter} 이관 대상이 없습니다.` : '2차분류 이관 대상이 없습니다.')
+      setStatus('2차분류로 보낼 공고를 체크하세요.')
       return
     }
     const result = preprocessRows(targetRows, rules, preprocessSettings)
@@ -948,9 +920,30 @@ function App() {
     const movedGongoSet = new Set(movedRows.map((row) => valueToText(row['공고번호'])).filter(Boolean))
     const keptFinalRows = finalRows.filter((row) => !movedGongoSet.has(valueToText(row['공고번호'])))
     setFinalRows([...keptFinalRows, ...movedRows])
+    setSelectedHumanKeys([])
     setStage('output')
-    setStatus(`곡괭이후나라시 완료: ${jongmokFilter || '전체'} ${movedRows.length}건 2차분류 완료로 이동`)
-    addLog(`곡괭이후나라시 완료 / 2차분류 이동: ${jongmokFilter || '전체'} ${movedRows.length}건`)
+    setStatus(`선택 공고 2차분류 완료: ${movedRows.length.toLocaleString()}건`)
+    addLog(`선택 공고 2차분류 이동: ${movedRows.length}건`)
+  }
+
+  function selectedHumanRows() {
+    const selected = new Set(selectedHumanKeys)
+    if (!selected.size) return []
+    return filteredRows.filter((row, index) => selected.has(rowKey(row, index)))
+  }
+
+  function deleteSelectedHumanRows() {
+    const selected = new Set(selectedHumanKeys)
+    if (!selected.size) {
+      setStatus('삭제할 공고를 체크하세요.')
+      return
+    }
+    const nextRows = humanRows.filter((row) => !selected.has(rowKey(row)))
+    const deleted = humanRows.length - nextRows.length
+    setHumanRows(nextRows)
+    setSelectedHumanKeys([])
+    setStatus(`선택 공고 삭제: ${deleted.toLocaleString()}건`)
+    addLog(`공고관리 선택 삭제: ${deleted}건`)
   }
 
   function clearAllRows() {
@@ -958,6 +951,7 @@ function App() {
     setPreRows([])
     setHumanRows([])
     setFinalRows([])
+    setSelectedHumanKeys([])
     setPreStats(null)
     setFormatIssues([])
     setSource('미수집')
@@ -1087,7 +1081,7 @@ function App() {
       setStage('preprocess')
     } else {
       setHumanRows(importedRows)
-      setSelectedGongo('')
+      setSelectedHumanKeys([])
       setStage('human')
     }
     setDetailRow(null)
@@ -1161,6 +1155,21 @@ function App() {
       )
     }
     return null
+  }
+
+  function renderHumanStageActions() {
+    return (
+      <>
+        <button type="button" onClick={saveHumanEdit} disabled={!selectedHumanKeys.length}>
+          <Save size={15} />
+          재전처리
+        </button>
+        <button className="primary" type="button" onClick={finalizeRows} disabled={!selectedHumanKeys.length}>
+          <ClipboardCheck size={15} />
+          2차분류
+        </button>
+      </>
+    )
   }
 
   function tableMeta(total: number, filtered: number, shown: number) {
@@ -1243,15 +1252,11 @@ function App() {
         <HumanView
           columns={columns}
           rows={visibleRows}
-          onSave={saveHumanEdit}
-          onFinalize={finalizeRows}
-          onA3Parse={runA3ParserForSelected}
-          loading={loading}
-          tableMeta={tableMeta(stageRows.length, filteredRows.length, visibleRows.length)}
+          tableMeta=""
           displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
-          onExportCsv={() => exportStageCsv('human')}
-          onImportCsv={() => humanImportInputRef.current?.click()}
+          selectedRowKeys={selectedHumanKeys}
+          onSelectedRowKeysChange={setSelectedHumanKeys}
         />
       )
     }
@@ -1318,8 +1323,15 @@ function App() {
       <section className={`work-grid ${logCollapsed ? 'log-collapsed' : ''}`}>
         <main className="main-workspace">
           <section className="command-row">
-            {renderStageActions()}
-            <div className="toolbar-spacer" />
+            {stage === 'human' ? (
+              <button className="danger" type="button" onClick={deleteSelectedHumanRows} disabled={!selectedHumanKeys.length}>
+                <AlertTriangle size={15} />
+                삭제
+              </button>
+            ) : (
+              renderStageActions()
+            )}
+            {stage !== 'human' ? <div className="toolbar-spacer" /> : null}
             <label className="toolbar-field narrow">
               <span>입력일</span>
               <input
@@ -1329,21 +1341,31 @@ function App() {
                 onInput={(event) => setDateFilter(event.currentTarget.value)}
               />
             </label>
-            <label className="toolbar-field">
-              <span>종목</span>
-              <select
+            {stage === 'human' ? (
+              <HumanJongmokDropdown
                 value={jongmokFilter}
-                onChange={(event) => setJongmokFilter(event.target.value)}
-                onInput={(event) => setJongmokFilter(event.currentTarget.value)}
-              >
-                <option value="">{emptyJongmokLabel}</option>
-                {jongmokOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={jongmokOptions as JongmokOption[]}
+                emptyLabel={emptyJongmokLabel}
+                onChange={setJongmokFilter}
+              />
+            ) : (
+              <label className="toolbar-field">
+                <span>종목</span>
+                <select
+                  value={jongmokFilter}
+                  onChange={(event) => setJongmokFilter(event.target.value)}
+                  onInput={(event) => setJongmokFilter(event.currentTarget.value)}
+                >
+                  <option value="">{emptyJongmokLabel}</option>
+                  {jongmokOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {stage === 'human' ? renderHumanStageActions() : null}
             <div className="tb-search">
               <Search size={16} />
               <input
@@ -1429,6 +1451,81 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="metric">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  )
+}
+
+function HumanJongmokDropdown({
+  value,
+  options,
+  emptyLabel,
+  onChange,
+}: {
+  value: string
+  options: JongmokOption[]
+  emptyLabel: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find((item) => item.value === value)
+  const knownGroups = ['일반건설', '기타건설', '전문건설', '미확인']
+  const extraGroups = Array.from(new Set(options.map((item) => item.group).filter((group) => !knownGroups.includes(group))))
+    .sort((a, b) => a.localeCompare(b, 'ko'))
+  const groups = [...knownGroups, ...extraGroups]
+    .map((group) => ({ group, rows: options.filter((item) => item.group === group) }))
+    .filter((group) => group.rows.length)
+  const selectedLabel = selected
+    ? selected.count > 0
+      ? `${selected.value} ${selected.count.toLocaleString()}건`
+      : `${selected.value} (완료)`
+    : emptyLabel
+
+  return (
+    <div className="human-jongmok-select">
+      <span>종목</span>
+      <button type="button" className="human-jongmok-button" onClick={() => setOpen((current) => !current)}>
+        {selected ? <Check size={14} /> : null}
+        <strong>{selectedLabel}</strong>
+        <ChevronDown size={15} />
+      </button>
+      {open ? (
+        <div className="human-jongmok-menu">
+          <button
+            type="button"
+            className={!value ? 'selected' : ''}
+            onClick={() => {
+              onChange('')
+              setOpen(false)
+            }}
+          >
+            <span className="option-label">— 종목 선택 —</span>
+          </button>
+          {groups.map(({ group, rows }) => (
+            <div key={group} className="human-jongmok-group">
+              <div className="human-jongmok-group-title">— {group} —</div>
+              {rows.map((item) => {
+                const isSelected = item.value === value
+                const doneOnly = item.count === 0 && item.moved > 0
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={isSelected ? 'selected' : ''}
+                    onClick={() => {
+                      onChange(item.value)
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="check-slot">{isSelected || doneOnly ? <Check size={14} /> : null}</span>
+                    <span className="option-label">{item.value}</span>
+                    <span className="option-count">{doneOnly ? '완료' : item.count.toLocaleString()}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1693,27 +1790,19 @@ function PreprocessView({
 function HumanView({
   columns,
   rows,
-  onSave,
-  onFinalize,
-  onA3Parse,
-  loading,
   tableMeta,
   displayFormatMap,
   onRowOpen,
-  onExportCsv,
-  onImportCsv,
+  selectedRowKeys,
+  onSelectedRowKeysChange,
 }: {
   columns: string[]
   rows: NoticeRow[]
-  onSave: () => void
-  onFinalize: () => void
-  onA3Parse: () => void
-  loading: boolean
   tableMeta: string
   displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
-  onExportCsv: () => void
-  onImportCsv: () => void
+  selectedRowKeys: string[]
+  onSelectedRowKeysChange: (keys: string[]) => void
 }) {
   return (
     <>
@@ -1721,29 +1810,7 @@ function HumanView({
         <div className="section-head">
           <div className="section-title-line">
             <h2>공고관리 대상</h2>
-            <span>{tableMeta}</span>
-          </div>
-          <div className="panel-actions">
-            <button className="inline-action" type="button" onClick={onExportCsv} disabled={!rows.length}>
-              <FileDown size={16} />
-              테스트 내보내기
-            </button>
-            <button className="inline-action" type="button" onClick={onImportCsv}>
-              <CloudDownload size={16} />
-              테스트 가져오기
-            </button>
-            <button className="inline-action" type="button" onClick={onSave} disabled={!rows.length}>
-              <Save size={16} />
-              저장/재전처리
-            </button>
-            <button className="inline-action" type="button" onClick={onA3Parse} disabled={!rows.length || loading}>
-              <Search size={16} />
-              A3 문서곡괭이
-            </button>
-            <button className="inline-action" type="button" onClick={onFinalize} disabled={!rows.length}>
-              <ClipboardCheck size={16} />
-              2차분류 완료로 이동
-            </button>
+            {tableMeta ? <span>{tableMeta}</span> : null}
           </div>
         </div>
         <DataTable
@@ -1752,6 +1819,9 @@ function HumanView({
           emptyText="전처리 후 공고관리 대상을 확인하세요."
           tableId="main:human"
           displayFormatMap={displayFormatMap}
+          selectable
+          selectedRowKeys={selectedRowKeys}
+          onSelectedRowKeysChange={onSelectedRowKeysChange}
           onCellDoubleClick={(row, col) => {
             if (col === '공사명') onRowOpen(row)
           }}
@@ -3809,6 +3879,9 @@ function DataTable({
   rows,
   emptyText,
   tableId,
+  selectable = false,
+  selectedRowKeys = [],
+  onSelectedRowKeysChange,
   onRowClick,
   onCellDoubleClick,
   editable = false,
@@ -3826,6 +3899,9 @@ function DataTable({
   rows: NoticeRow[]
   emptyText: string
   tableId?: string
+  selectable?: boolean
+  selectedRowKeys?: string[]
+  onSelectedRowKeysChange?: (keys: string[]) => void
   onRowClick?: (row: NoticeRow) => void
   onCellDoubleClick?: (row: NoticeRow, col: string) => void
   editable?: boolean
@@ -3848,6 +3924,7 @@ function DataTable({
   const [openMultiCell, setOpenMultiCell] = useState<string | null>(null)
   const [expandedTextCell, setExpandedTextCell] = useState<string | null>(null)
   const expandableTextColumnSet = useMemo(() => new Set(expandableTextColumns), [expandableTextColumns])
+  const selectedRowKeySet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys])
 
   useEffect(() => {
     setColumnWidths(loadColumnWidthCache(widthStorageKey))
@@ -3916,6 +3993,23 @@ function DataTable({
     onCellChange?.(row, col, next.join('/'))
   }
 
+  function toggleRowSelection(key: string, checked: boolean) {
+    const next = new Set(selectedRowKeys)
+    if (checked) next.add(key)
+    else next.delete(key)
+    onSelectedRowKeysChange?.(Array.from(next))
+  }
+
+  function toggleAllVisible(checked: boolean) {
+    const next = new Set(selectedRowKeys)
+    sortedRows.forEach((row, index) => {
+      const key = rowKey(row, index)
+      if (checked) next.add(key)
+      else next.delete(key)
+    })
+    onSelectedRowKeysChange?.(Array.from(next))
+  }
+
   function startColumnResize(event: ReactMouseEvent<HTMLSpanElement>, col: string) {
     event.preventDefault()
     event.stopPropagation()
@@ -3946,24 +4040,43 @@ function DataTable({
   if (!rows.length || !columns.length) {
     return <div className="empty-state">{emptyText}</div>
   }
+  const visibleSelectableKeys = selectable ? sortedRows.map((row, index) => rowKey(row, index)) : []
+  const selectedVisibleCount = visibleSelectableKeys.filter((key) => selectedRowKeySet.has(key)).length
+  const allVisibleSelected = Boolean(visibleSelectableKeys.length && selectedVisibleCount === visibleSelectableKeys.length)
+  const partiallySelected = Boolean(selectedVisibleCount && selectedVisibleCount < visibleSelectableKeys.length)
   return (
     <div className="table-frame">
       <div className="table-wrap">
         <table>
           <colgroup>
+            {selectable ? <col style={{ width: 42 }} /> : null}
             {columns.map((col) => (
               <col key={col} style={{ width: columnWidth(col) }} />
             ))}
           </colgroup>
           <thead>
             <tr>
+              {selectable ? (
+                <th className="select-col sticky-col" style={{ width: 42, minWidth: 42, maxWidth: 42 }}>
+                  <label className="row-select-box" title="현재 화면 전체 선택">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(input) => {
+                        if (input) input.indeterminate = partiallySelected
+                      }}
+                      onChange={(event) => toggleAllVisible(event.target.checked)}
+                    />
+                  </label>
+                </th>
+              ) : null}
               {columns.map((col, colIndex) => {
                 const activeSort = sortState?.col === col ? sortState.dir : null
                 return (
                 <th
                   key={col}
                   className={[
-                    colIndex === 0 ? 'sticky-col' : '',
+                    colIndex === 0 && !selectable ? 'sticky-col' : '',
                     'resizable-th',
                     activeSort ? `sorted-${activeSort}` : '',
                   ].join(' ')}
@@ -3990,9 +4103,24 @@ function DataTable({
             {sortedRows.map((row, rowIndex) => (
               <tr
                 key={`${valueToText(row['공고번호'])}-${rowIndex}`}
-                className={[onRowClick ? 'clickable-row' : '', rowClassName?.(row) ?? ''].join(' ')}
+                className={[
+                  onRowClick ? 'clickable-row' : '',
+                  selectable && selectedRowKeySet.has(rowKey(row, rowIndex)) ? 'selected-row' : '',
+                  rowClassName?.(row) ?? '',
+                ].join(' ')}
                 onClick={() => onRowClick?.(row)}
               >
+                {selectable ? (
+                  <td className="select-col sticky-col" style={{ width: 42, minWidth: 42, maxWidth: 42 }}>
+                    <label className="row-select-box" onClick={(event) => event.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedRowKeySet.has(rowKey(row, rowIndex))}
+                        onChange={(event) => toggleRowSelection(rowKey(row, rowIndex), event.target.checked)}
+                      />
+                    </label>
+                  </td>
+                ) : null}
                 {columns.map((col, colIndex) => {
                   const multiOptions = multiOptionsForColumn(col)
                   const cellKey = `${row.__settingsIndex ?? rowIndex}:${col}`
@@ -4006,7 +4134,7 @@ function DataTable({
                   <td
                     key={col}
                     className={[
-                    colIndex === 0 ? 'sticky-col' : '',
+                    colIndex === 0 && !selectable ? 'sticky-col' : '',
                     multiOptions ? 'multi-cell' : '',
                     valueToText(row[col]).trim() === '' ? 'empty-cell' : '',
                     col === '검증상태' ? `status-${valueToText(row[col])}` : '',
