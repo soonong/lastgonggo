@@ -183,8 +183,9 @@ function buildJongmokGroupMap(jongmokMapRows: NoticeRow[]) {
   return map
 }
 
-function buildHumanJongmokOptions(rows: NoticeRow[], finalGongoSet: Set<string>, jongmokMapRows: NoticeRow[]) {
+function buildHumanJongmokOptions(rows: NoticeRow[], finalRows: NoticeRow[], jongmokMapRows: NoticeRow[]) {
   const groupMap = buildJongmokGroupMap(jongmokMapRows)
+  const finalGongoSet = new Set(finalRows.map((row) => valueToText(row['공고번호'])).filter(Boolean))
   const map = new Map<string, { value: string; count: number; moved: number }>()
   for (const row of rows) {
     const gongo = valueToText(row['공고번호'])
@@ -193,10 +194,16 @@ function buildHumanJongmokOptions(rows: NoticeRow[], finalGongoSet: Set<string>,
     const names = tokens.length ? tokens : ['종목 미확인']
     for (const value of names) {
       const item = map.get(value) ?? { value, count: 0, moved: 0 }
-      if (moved) item.moved += 1
-      else item.count += 1
+      if (!moved) item.count += 1
       map.set(value, item)
     }
+  }
+  for (const row of finalRows) {
+    const value = valueToText(row['2차분류_종목']).trim()
+    if (!value || value === '전체') continue
+    const item = map.get(value) ?? { value, count: 0, moved: 0 }
+    item.moved += 1
+    map.set(value, item)
   }
   return Array.from(map.values())
     .sort((a, b) => a.value.localeCompare(b.value, 'ko'))
@@ -547,6 +554,7 @@ function App() {
   const [, setHasModuleKey] = useState<boolean | null>(null)
   const [preStats, setPreStats] = useState<PipelineStats | null>(null)
   const [selectedHumanKeys, setSelectedHumanKeys] = useState<string[]>([])
+  const [selectedOutputKeys, setSelectedOutputKeys] = useState<string[]>([])
   const [selectedRuleItem, setSelectedRuleItem] = useState('')
   const [ruleDraft, setRuleDraft] = useState<Record<string, string>>({})
   const [logs, setLogs] = useState<string[]>(['대기: API 호출을 실행하세요.'])
@@ -631,14 +639,14 @@ function App() {
     [finalRows],
   )
   const jongmokOptions = useMemo(() => {
-    if (stage === 'human') return buildHumanJongmokOptions(humanRows, finalGongoSet, settingRows.jongmokMap ?? [])
+    if (stage === 'human') return buildHumanJongmokOptions(humanRows, finalRows, settingRows.jongmokMap ?? [])
     const values = (settingRows.jongmokMap ?? [])
       .map((row) => valueToText(row['업종']).trim())
       .filter(Boolean)
     return Array.from(new Set(values))
       .sort((a, b) => a.localeCompare(b, 'ko'))
       .map((value) => ({ value, label: value }))
-  }, [finalGongoSet, humanRows, settingRows.jongmokMap, stage])
+  }, [finalRows, humanRows, settingRows.jongmokMap, stage])
   const emptyJongmokLabel = stage === 'human'
     ? `미완료 전체 ${humanRows.filter((row) => isHumanReviewCandidate(row, '', finalGongoSet)).length.toLocaleString()}건`
     : '종목 선택'
@@ -662,6 +670,11 @@ function App() {
     const available = new Set(humanRows.map((row, index) => rowKey(row, index)))
     setSelectedHumanKeys((prev) => prev.filter((key) => available.has(key)))
   }, [humanRows, stage])
+  useEffect(() => {
+    if (stage !== 'output') return
+    const available = new Set(finalRows.map((row, index) => rowKey(row, index)))
+    setSelectedOutputKeys((prev) => prev.filter((key) => available.has(key)))
+  }, [finalRows, stage])
   const emptyCells = useMemo(() => {
     if (!stageRows.length || !columns.length) return 0
     let count = 0
@@ -709,6 +722,7 @@ function App() {
       setHumanRows([])
       setFinalRows([])
       setSelectedHumanKeys([])
+      setSelectedOutputKeys([])
       setPreStats(null)
       setFormatIssues(nextFormatIssues)
       setSource(data.source)
@@ -786,6 +800,7 @@ function App() {
       setHumanRows([])
       setFinalRows([])
       setSelectedHumanKeys([])
+      setSelectedOutputKeys([])
       setPreStats(stats)
       setStage('preprocess')
       setStatus(`곡괭이전나라시 완료: ${stats.total}건, 확인 ${stats.review}건, 오류 ${stats.errors}건`)
@@ -879,6 +894,7 @@ function App() {
     setHumanRows(result.rows)
     setFinalRows([])
     setSelectedHumanKeys([])
+    setSelectedOutputKeys([])
     setPreStats(result.stats)
     setStage('preprocess')
     setStatus(`문서곡괭이질 완료: ${result.stats.total}건, 확인 ${result.stats.review}건, 오류 ${result.stats.errors}건, A3 실패 ${failed}건`)
@@ -920,6 +936,7 @@ function App() {
     const keptFinalRows = finalRows.filter((row) => !movedGongoSet.has(valueToText(row['공고번호'])))
     setFinalRows([...keptFinalRows, ...movedRows])
     setSelectedHumanKeys([])
+    setSelectedOutputKeys([])
     setStage('output')
     setStatus(`선택 공고 2차분류 완료: ${movedRows.length.toLocaleString()}건`)
     addLog(`선택 공고 2차분류 이동: ${movedRows.length}건`)
@@ -945,12 +962,27 @@ function App() {
     addLog(`공고관리 선택 삭제: ${deleted}건`)
   }
 
+  function deleteSelectedOutputRows() {
+    const selected = new Set(selectedOutputKeys)
+    if (!selected.size) {
+      setStatus('삭제할 2차분류 완료 공고를 체크하세요.')
+      return
+    }
+    const nextRows = finalRows.filter((row, index) => !selected.has(rowKey(row, index)))
+    const deleted = finalRows.length - nextRows.length
+    setFinalRows(nextRows)
+    setSelectedOutputKeys([])
+    setStatus(`2차분류 완료 선택 삭제: ${deleted.toLocaleString()}건`)
+    addLog(`2차분류 완료 선택 삭제: ${deleted}건`)
+  }
+
   function clearAllRows() {
     setRawRows([])
     setPreRows([])
     setHumanRows([])
     setFinalRows([])
     setSelectedHumanKeys([])
+    setSelectedOutputKeys([])
     setPreStats(null)
     setFormatIssues([])
     setSource('미수집')
@@ -1147,10 +1179,16 @@ function App() {
     }
     if (stage === 'output') {
       return (
-        <button type="button" onClick={exportCurrent} disabled={!filteredRows.length}>
-          <FileDown size={15} />
-          엑셀 다운로드
-        </button>
+        <>
+          <button className="danger" type="button" onClick={deleteSelectedOutputRows} disabled={!selectedOutputKeys.length}>
+            <AlertTriangle size={15} />
+            삭제
+          </button>
+          <button type="button" onClick={exportCurrent} disabled={!filteredRows.length}>
+            <FileDown size={15} />
+            엑셀 다운로드
+          </button>
+        </>
       )
     }
     return null
@@ -1226,10 +1264,12 @@ function App() {
       return (
         <OutputView
           columns={columns}
-          rows={finalRows}
+          rows={visibleRows}
           tableMeta={tableMeta(finalRows.length, filteredRows.length, Math.min(finalRows.length, 200))}
           displayFormatMap={displayFormatMap}
           onRowOpen={setDetailRow}
+          selectedRowKeys={selectedOutputKeys}
+          onSelectedRowKeysChange={setSelectedOutputKeys}
         />
       )
     }
@@ -1469,8 +1509,9 @@ function HumanJongmokDropdown({
   const extraGroups = Array.from(new Set(options.map((item) => item.group).filter((group) => !knownGroups.includes(group))))
     .sort((a, b) => a.localeCompare(b, 'ko'))
   const groups = [...knownGroups, ...extraGroups]
-    .map((group) => ({ group, rows: options.filter((item) => item.group === group) }))
+    .map((group) => ({ group, rows: options.filter((item) => item.group === group && item.count > 0) }))
     .filter((group) => group.rows.length)
+  const doneRows = options.filter((item) => item.moved > 0).sort((a, b) => a.value.localeCompare(b.value, 'ko'))
 
   return (
     <div className="human-jongmok-select">
@@ -1480,16 +1521,23 @@ function HumanJongmokDropdown({
         {groups.map(({ group, rows }) => (
           <optgroup key={group} label={`— ${group} —`}>
             {rows.map((item) => {
-              const doneOnly = item.count === 0 && item.moved > 0
-              const label = doneOnly ? `✓ ${item.value} (완료)` : `${item.value} ${item.count.toLocaleString()}건`
               return (
                 <option key={item.value} value={item.value}>
-                  {label}
+                  {`${item.value} ${item.count.toLocaleString()}건`}
                 </option>
               )
             })}
           </optgroup>
         ))}
+        {doneRows.length ? (
+          <optgroup label="──────── 완료 ────────">
+            {doneRows.map((item) => (
+              <option key={`done:${item.value}`} value={item.value}>
+                {`✓ ${item.value} 완료`}
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
       </select>
     </div>
   )
@@ -3792,12 +3840,16 @@ function OutputView({
   tableMeta,
   displayFormatMap,
   onRowOpen,
+  selectedRowKeys,
+  onSelectedRowKeysChange,
 }: {
   columns: string[]
   rows: NoticeRow[]
   tableMeta: string
   displayFormatMap: Record<string, string>
   onRowOpen: (row: NoticeRow) => void
+  selectedRowKeys: string[]
+  onSelectedRowKeysChange: (keys: string[]) => void
 }) {
   return (
     <section className="table-section">
@@ -3807,7 +3859,17 @@ function OutputView({
           <span>{tableMeta}</span>
         </div>
       </div>
-      <DataTable columns={columns} rows={rows.slice(0, 200)} emptyText="최종분류를 실행하세요." onRowClick={onRowOpen} tableId="main:output" displayFormatMap={displayFormatMap} />
+      <DataTable
+        columns={columns}
+        rows={rows.slice(0, 200)}
+        emptyText="최종분류를 실행하세요."
+        onRowClick={onRowOpen}
+        tableId="main:output"
+        displayFormatMap={displayFormatMap}
+        selectable
+        selectedRowKeys={selectedRowKeys}
+        onSelectedRowKeysChange={onSelectedRowKeysChange}
+      />
     </section>
   )
 }
@@ -4274,9 +4336,11 @@ function NoticeDetailModal({
   const constructionType = valueToText(draftRow['일반_기타_전문']) || '일반건설'
   const gongsanum = valueToText(draftRow['공고번호'])
   const regionIssues = getRegionIssues(draftRow)
+  const htmlDoc = valueToText(draftRow['공고본문_HTML'])
   const docText = buildDetailDocText(draftRow)
+  const searchableDocText = htmlDoc ? htmlToPlainText(htmlDoc) : docText
   const highlightQuery = docSearch.trim() || activeHighlight.trim()
-  const highlightCount = highlightQuery ? countMatches(docText, highlightQuery) : 0
+  const highlightCount = highlightQuery ? countMatches(searchableDocText, highlightQuery) : 0
   const currentSearchIndex = docSearch.trim() && highlightCount ? (searchIndex % highlightCount) + 1 : 0
 
   useEffect(() => {
@@ -4488,10 +4552,10 @@ function NoticeDetailModal({
           <div className="detail-doc">
             {activeLeftTab !== '공고문' ? (
               <FilePreviewTab file={fileTabs.find((file) => file.name === activeLeftTab)} />
+            ) : htmlDoc ? (
+              <HighlightedHtmlDocument html={htmlDoc} query={highlightQuery} activeIndex={docSearch.trim() ? searchIndex : -1} />
             ) : highlightQuery ? (
               <HighlightedDocument text={docText} query={highlightQuery} activeIndex={docSearch.trim() ? searchIndex : -1} />
-            ) : valueToText(draftRow['공고본문_HTML']) ? (
-              <div className="notice-html" dangerouslySetInnerHTML={{ __html: valueToText(draftRow['공고본문_HTML']) }} />
             ) : (
               <>
                 <div className="doc-placeholder">
@@ -4677,6 +4741,59 @@ function HighlightedDocument({ text, query, activeIndex = -1 }: { text: string; 
       })}
     </div>
   )
+}
+
+function HighlightedHtmlDocument({ html, query, activeIndex = -1 }: { html: string; query: string; activeIndex?: number }) {
+  const safeHtml = useMemo(() => highlightHtmlPreservingMarkup(html, query, activeIndex), [html, query, activeIndex])
+  return <div className="notice-html" dangerouslySetInnerHTML={{ __html: safeHtml }} />
+}
+
+function highlightHtmlPreservingMarkup(html: string, query: string, activeIndex: number) {
+  const needle = query.trim()
+  if (!needle) return html
+  if (typeof DOMParser === 'undefined') return html
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  const body = doc.body
+  const lowerNeedle = needle.toLowerCase()
+  let hitIndex = -1
+  const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement
+      if (!parent) return NodeFilter.FILTER_REJECT
+      if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) return NodeFilter.FILTER_REJECT
+      return node.nodeValue?.toLowerCase().includes(lowerNeedle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    },
+  })
+  const textNodes: Text[] = []
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text)
+  for (const node of textNodes) {
+    const source = node.nodeValue ?? ''
+    const lower = source.toLowerCase()
+    const fragment = doc.createDocumentFragment()
+    let cursor = 0
+    let index = lower.indexOf(lowerNeedle)
+    while (index >= 0) {
+      if (index > cursor) fragment.append(doc.createTextNode(source.slice(cursor, index)))
+      hitIndex += 1
+      const mark = doc.createElement('mark')
+      mark.className = hitIndex === activeIndex ? 'active' : ''
+      mark.textContent = source.slice(index, index + needle.length)
+      fragment.append(mark)
+      cursor = index + needle.length
+      index = lower.indexOf(lowerNeedle, cursor)
+    }
+    if (cursor < source.length) fragment.append(doc.createTextNode(source.slice(cursor)))
+    node.replaceWith(fragment)
+  }
+  return body.innerHTML
+}
+
+function htmlToPlainText(html: string) {
+  if (!html.trim()) return ''
+  if (typeof DOMParser === 'undefined') return html.replace(/<[^>]+>/g, ' ')
+  const parser = new DOMParser()
+  return parser.parseFromString(html, 'text/html').body.textContent ?? ''
 }
 
 function splitHighlightParts(text: string, query: string) {

@@ -416,7 +416,9 @@ function normalizeBidFiles(body) {
         ? data.data
         : Array.isArray(data?.files)
           ? data.files
-          : []
+          : data && typeof data === 'object'
+            ? Object.entries(data).map(([name, url]) => ({ 파일명: name, URL: String(url || '') }))
+            : []
   return list
     .map((item, index) => {
       const row = item && typeof item === 'object' ? item : { url: String(item || '') }

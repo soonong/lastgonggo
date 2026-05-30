@@ -2623,6 +2623,20 @@ td.status-오류 {
   height: auto;
 }
 
+.notice-html mark {
+  padding: 1px 2px;
+  color: #111827;
+  background: #ffe066;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(173, 124, 0, 0.18);
+}
+
+.notice-html mark.active {
+  color: #ffffff;
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.24);
+}
+
 .notice-text-highlight {
   min-height: 100%;
   padding: 18px;
