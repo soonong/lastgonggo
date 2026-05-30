@@ -1082,17 +1082,18 @@ function App() {
     addLog(`엑셀 출력: ${filteredRows.length}건`)
   }
 
-  async function exportStageCsv(target: 'preprocess' | 'human') {
-    const rows = target === 'preprocess' ? preRows : humanRows
+  async function exportStageCsv(target: 'collect' | 'preprocess' | 'human') {
+    const rows = target === 'collect' ? rawRows : target === 'preprocess' ? preRows : humanRows
     if (!rows.length) return
-    const suffix = target === 'preprocess' ? '입찰공고_전처리_테스트' : '공고관리_테스트'
+    const suffix = target === 'collect' ? '입찰공고_원본_테스트' : target === 'preprocess' ? '입찰공고_전처리_테스트' : '공고관리_테스트'
+    const label = target === 'collect' ? '입찰공고 원본' : target === 'preprocess' ? '전처리' : '공고관리'
     const exportColumns = columnsForRows(rows, columns)
     const today = new Date().toISOString().slice(0, 10)
     const { filename, csv } = exportCsv(rows, exportColumns, `${today}_${suffix}.csv`)
     try {
       const saved = await saveCsvExport(filename, csv)
-      setStatus(`${target === 'preprocess' ? '전처리' : '공고관리'} 내보내기 완료: ${saved.filename}`)
-      addLog(`${target === 'preprocess' ? '전처리' : '공고관리'} 테스트 CSV 저장: ${saved.path}`)
+      setStatus(`${label} 내보내기 완료: ${saved.filename}`)
+      addLog(`${label} 테스트 CSV 저장 ${saved.path}`)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setStatus(`브라우저 다운로드 완료, 서버 저장 실패: ${message}`)
@@ -1157,6 +1158,10 @@ function App() {
           <button className="danger" type="button" onClick={clearAllRows}>
             <AlertTriangle size={15} />
             모두 삭제
+          </button>
+          <button type="button" onClick={() => exportStageCsv('collect')} disabled={!rawRows.length}>
+            <FileDown size={15} />
+            내보내기
           </button>
         </>
       )
