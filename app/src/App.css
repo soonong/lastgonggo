@@ -2371,8 +2371,9 @@ td.status-오류 {
 }
 
 .detail-row-table-wrap {
-  height: 104px;
-  overflow: auto;
+  height: 84px;
+  overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-gutter: stable both-edges;
 }
 
@@ -2872,6 +2873,19 @@ td.status-오류 {
   width: 100%;
   min-height: 620px;
   border: 0;
+}
+
+.file-preview-image {
+  display: grid;
+  min-height: 620px;
+  place-items: center;
+  overflow: auto;
+  background: #f8fafc;
+}
+
+.file-preview-image img {
+  max-width: 100%;
+  height: auto;
 }
 
 .qualification-box {

@@ -4600,7 +4600,6 @@ function NoticeDetailModal({
             ))}
           </div>
           <div className="detail-right__content">
-            {regionIssues.length ? <RegionIssueBanner issues={regionIssues} /> : null}
             {activeTab === '첨부파일' ? (
               <AttachmentPanel
                 status={attachmentStatus}
@@ -4650,9 +4649,6 @@ function NoticeDetailModal({
                 <Save size={16} />
                 저장 / 닫기
               </button>
-              <button type="button" onClick={onClose}>
-                닫기
-              </button>
             </div>
           </div>
         </section>
@@ -4681,19 +4677,6 @@ function detailFieldClass(row: NoticeRow, field: string, regionIssues: Array<{ f
   if (valueToText(row[field]).trim() === '') classes.push('empty')
   if (regionIssues.some((issue) => issue.field === field)) classes.push('needs-region-review')
   return classes.join(' ')
-}
-
-function RegionIssueBanner({ issues }: { issues: Array<{ field: string; value: string; status: string }> }) {
-  return (
-    <div className="region-issue-banner">
-      <strong>지역 매핑 검토필요</strong>
-      {issues.map((issue) => (
-        <span key={issue.field}>
-          {issue.field}: {issue.value || '빈값'} {issue.status ? `(${issue.status})` : ''}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 function buildDetailDocText(row: NoticeRow) {
@@ -4877,26 +4860,44 @@ function AttachmentPanel({
 
 function FilePreviewTab({ file }: { file?: { name: string; url: string; ext: string } }) {
   if (!file) return <div className="doc-placeholder">파일 탭을 선택하세요.</div>
+  const previewUrl = filePreviewUrl(file)
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(file.ext)
   const canFrame = file.url && ['pdf', 'html', 'htm', 'txt'].includes(file.ext)
+  const hwpViewer = file.ext === 'hwp' || file.ext === 'hwpx' ? externalDocumentViewerUrl(file) : ''
   return (
     <div className="file-preview-tab">
       <div className="file-preview-head">
         <strong>{file.name}</strong>
-        {file.url ? <a href={file.url} target="_blank" rel="noreferrer">새 창</a> : null}
+        {file.url ? <a href={file.url} target="_blank" rel="noreferrer">원본 열기</a> : null}
       </div>
-      {canFrame ? (
-        <iframe title={file.name} src={file.url} />
+      {isImage && previewUrl ? (
+        <div className="file-preview-image">
+          <img src={previewUrl} alt={file.name} />
+        </div>
+      ) : canFrame && previewUrl ? (
+        <iframe title={file.name} src={previewUrl} />
+      ) : hwpViewer ? (
+        <iframe title={file.name} src={hwpViewer} />
       ) : (
         <div className="doc-placeholder">
           <FileDown size={30} />
           <strong>{file.ext || 'FILE'} 미리보기</strong>
-          <span>이 형식은 다운로드 또는 새 창으로 확인하세요.</span>
+          <span>지원하지 않는 형식입니다. 원본 열기로 확인하세요.</span>
         </div>
       )}
     </div>
   )
 }
 
+function filePreviewUrl(file: { name: string; url: string; ext: string }) {
+  if (!file.url) return ''
+  return '/api/file-preview?url=' + encodeURIComponent(file.url) + '&name=' + encodeURIComponent(file.name)
+}
+
+function externalDocumentViewerUrl(file: { name: string; url: string; ext: string }) {
+  if (!file.url) return ''
+  return 'https://docs.google.com/gview?embedded=1&url=' + encodeURIComponent(file.url)
+}
 function attachmentExt(value: string) {
   const clean = value.split('?')[0]
   const ext = clean.includes('.') ? clean.split('.').pop() || '' : ''
@@ -4944,5 +4945,3 @@ function QualificationPanel({
 }
 
 export default App
-
-

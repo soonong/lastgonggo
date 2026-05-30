@@ -220,6 +220,45 @@ function fetchTextLoose(urlString, headers = {}, redirects = 0) {
   })
 }
 
+function fetchBinaryLoose(urlString, headers = {}, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlString)
+    const client = url.protocol === 'https:' ? https : http
+    const req = client.request(
+      url,
+      {
+        method: 'GET',
+        headers,
+        rejectUnauthorized: url.hostname === 'file.bidding2.kr' ? false : undefined,
+      },
+      (response) => {
+        const status = response.statusCode || 0
+        const location = response.headers.location
+        if (location && status >= 300 && status < 400 && redirects < 5) {
+          response.resume()
+          const nextUrl = new URL(location, url).toString()
+          fetchBinaryLoose(nextUrl, headers, redirects + 1).then(resolve, reject)
+          return
+        }
+        const chunks = []
+        response.on('data', (chunk) => chunks.push(chunk))
+        response.on('end', () => {
+          resolve({
+            status,
+            headers: response.headers,
+            body: Buffer.concat(chunks),
+          })
+        })
+      },
+    )
+    req.on('error', reject)
+    req.setTimeout(30_000, () => {
+      req.destroy(new Error('upstream timeout'))
+    })
+    req.end()
+  })
+}
+
 function csvEscape(value) {
   const text = String(value)
   if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
@@ -430,10 +469,61 @@ function normalizeBidFiles(body) {
         row.첨부파일명 ||
         row.orgFileName ||
         `첨부파일_${index + 1}`
-      const url = row.url || row.fileUrl || row.href || row.다운로드URL || row.downloadUrl || row.path || ''
+      const url = row.URL || row.url || row.fileUrl || row.href || row.다운로드URL || row.downloadUrl || row.path || ''
       return { id: String(index + 1), 파일명: String(name || '').trim(), URL: String(url || '').trim(), 원본: row }
     })
     .filter((row) => row.파일명 || row.URL)
+}
+
+function previewContentType(ext, upstreamType) {
+  const type = String(upstreamType || '').split(';')[0].trim()
+  if (type && type !== 'application/octet-stream') return upstreamType
+  const map = {
+    pdf: 'application/pdf',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    txt: 'text/plain; charset=utf-8',
+    html: 'text/html; charset=utf-8',
+    htm: 'text/html; charset=utf-8',
+    hwp: 'application/x-hwp',
+    hwpx: 'application/x-hwpx',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  }
+  return map[ext] || upstreamType || 'application/octet-stream'
+}
+
+async function proxyFilePreview(reqUrl, res) {
+  const target = reqUrl.searchParams.get('url') || ''
+  const fallbackName = target ? path.basename(new URL(target).pathname) : 'attachment'
+  const name = reqUrl.searchParams.get('name') || fallbackName
+  if (!/^https?:\/\//i.test(target)) {
+    sendJson(res, 400, { error: 'bad_url', message: '미리보기 URL이 필요합니다.' })
+    return
+  }
+  const ext = path.extname(name || new URL(target).pathname).replace('.', '').toLowerCase()
+  const upstream = await fetchBinaryLoose(target, {
+    Accept: '*/*',
+    Referer: 'https://bidding2.kr/',
+    'User-Agent': 'Mozilla/5.0 bidding-preprocess-local',
+  })
+  if (upstream.status >= 400) {
+    sendJson(res, upstream.status, { error: 'file_fetch_failed', message: `첨부파일을 가져오지 못했습니다. (${upstream.status})` })
+    return
+  }
+  const fileName = encodeURIComponent(name || `attachment.${ext || 'bin'}`)
+  res.writeHead(200, {
+    'Content-Type': previewContentType(ext, upstream.headers['content-type']),
+    'Content-Length': upstream.body.length,
+    'Content-Disposition': `inline; filename*=UTF-8''${fileName}`,
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
+  })
+  res.end(upstream.body)
 }
 
 async function documentPickaxeTest(req, res) {
@@ -1508,6 +1598,11 @@ const server = http.createServer(async (req, res) => {
 
     if (reqUrl.pathname === '/api/bid-files') {
       await proxyBidFiles(reqUrl, res)
+      return
+    }
+
+    if (reqUrl.pathname === '/api/file-preview') {
+      await proxyFilePreview(reqUrl, res)
       return
     }
 
