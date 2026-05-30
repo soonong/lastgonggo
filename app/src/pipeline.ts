@@ -53,6 +53,7 @@ export type PreprocessSettings = {
   bidMethodSkip?: NoticeRow[]
   deleteKeywords?: NoticeRow[]
   bracketRules?: NoticeRow[]
+  skipSpecialConditionRouter?: boolean
 }
 
 export function preprocessRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings = {}): PipelineResult {
@@ -71,7 +72,7 @@ export function preprocessRows(rows: NoticeRow[], rules: StandardColumnRule[], s
 
     normalizeRaw(next)
     applyBracketRules(next, settings)
-    applySpecialConditionRouter(next, settings)
+    if (!settings.skipSpecialConditionRouter) applySpecialConditionRouter(next, settings)
     applyRegionNormalization(next, settings)
     applyBasicCalculations(next, settings)
     applyColumnDefaults(next, rules)

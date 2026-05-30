@@ -779,7 +779,7 @@ function App() {
           current: `곡괭이전나라시 ${start + 1}-${end}`,
         })
 
-        const result = preprocessRows(chunk, rules, preprocessSettings)
+        const result = preprocessRows(chunk, rules, { ...preprocessSettings, skipSpecialConditionRouter: true })
         processedRows.push(...result.rows)
         stats.total += result.stats.total
         stats.changed += result.stats.changed
