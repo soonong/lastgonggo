@@ -68,11 +68,6 @@ export async function saveCsvExport(filename: string, csv: string) {
   return data as { ok: boolean; path: string; filename: string }
 }
 
-export async function fetchLocalServerNotices(limit = 300) {
-  const data = await getJson<ApiEnvelope<NoticeRow>>(`/api/local/server-notices?limit=${limit}`)
-  return { rows: data.rows ?? [], source: data.source ?? 'local-sample' }
-}
-
 export async function fetchA1ServerNotices(query: string) {
   const prefix = query.trim().startsWith('?') ? '' : '?'
   const data = await getJson<NoticeRow[] | ApiEnvelope<NoticeRow>>(`/api/bid${prefix}${query.trim()}`)

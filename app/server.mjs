@@ -15,7 +15,6 @@ loadEnv(path.join(__dirname, '.env.local'))
 const paths = {
   serverColumns: path.join(repoRoot, 'data', 'generated', 'server_notice_column_profiles.csv'),
   standardColumns: path.join(repoRoot, 'data', 'generated', 'api_column_format_confirmed_draft.csv'),
-  sampleRows: path.join(repoRoot, 'data', 'generated', 'server_notice_raw_wide.csv'),
   settingsDir: path.join(repoRoot, 'data', 'settings'),
 }
 
@@ -1542,12 +1541,6 @@ const server = http.createServer(async (req, res) => {
       const filePath = path.join(downloadDir, filename)
       fs.writeFileSync(filePath, `\uFEFF${csv}`, 'utf8')
       sendJson(res, 200, { ok: true, filename, path: filePath })
-      return
-    }
-
-    if (reqUrl.pathname === '/api/local/server-notices') {
-      const limit = Number(reqUrl.searchParams.get('limit') || 300)
-      sendJson(res, 200, { rows: readCsv(paths.sampleRows, limit), source: 'local-sample' })
       return
     }
 

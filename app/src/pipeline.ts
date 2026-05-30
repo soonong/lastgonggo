@@ -54,6 +54,7 @@ export type PreprocessSettings = {
   deleteKeywords?: NoticeRow[]
   bracketRules?: NoticeRow[]
   skipSpecialConditionRouter?: boolean
+  skipSiteRegionNormalization?: boolean
 }
 
 export function preprocessRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings = {}): PipelineResult {
@@ -185,6 +186,8 @@ function applyRegionNormalization(row: NoticeRow, settings: PreprocessSettings) 
     if (normalized.value) row['지역제한'] = normalized.value
     row['지역제한_매핑상태'] = normalized.status
   }
+
+  if (settings.skipSiteRegionNormalization) return
 
   const site = text(row['공사현장'])
   if (site) {
