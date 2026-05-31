@@ -4421,9 +4421,7 @@ const detailTabSections: Record<string, DetailSectionSpec[]> = {
       fields: ['대업종', '특수실적_공통', '상호진출여부', '상호진출_일반전문', '전문건설_주력분야', '입찰업무구분', '내역입찰', '공동도급_지역제한', '의무공동도급지역', 'pq_접수마감일', '입찰보증금_납부여부', '입찰보증금_납부처', '실적심사신청서_접수방식', '실적심사신청서_접수마감일', '공고집행관', '공고집행관_전화번호', '공고담당자', '공고담당자_전화번호', '기초금액_발표전', '참가신청여부', '자동수집여부', '참조공고번호', '특수실적', '공고확인', '발주처코드', '상위_발주처코드', '검색용현장', '경력기술자'],
     },
   ],
-  적격심사기준: [
-    { title: '적격심사 매칭', fields: ['적격발주처', '원발주처', '적격평가기준_세부', '적격_1차상태', '적격_1차사유', '적격_2차상태', '적격_처치방법'] },
-  ],
+  적격심사기준: [],
 }
 
 function NoticeDetailModal({
@@ -4995,7 +4993,7 @@ function NoticeDetailModal({
                 noticeDate={valueToText(draftRow['공고일']) || valueToText(draftRow['입력일'])}
               />
             ) : null}
-            {activeTab !== '첨부파일' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
+            {activeTab !== '첨부파일' && activeTab !== '적격심사기준' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
             <div className="detail-savebar">
               <button
                 className="primary"
@@ -5392,14 +5390,14 @@ function QualificationNodeView({ node, depth }: { node: QualificationNode; depth
   )
   if (!hasChildren) {
     return (
-      <div className="qualification-leaf" style={{ marginLeft: depth * 14 }}>
+      <div className="qualification-leaf" style={{ marginLeft: depth * 6 }}>
         <strong>{node.name}</strong>
         <em>{body}</em>
       </div>
     )
   }
   return (
-    <details className="qualification-node" open={depth < 2} style={{ marginLeft: depth * 14 }}>
+    <details className="qualification-node" open={depth < 2} style={{ marginLeft: depth * 6 }}>
       <summary>
         <ChevronDown size={14} />
         <strong>{node.name}</strong>
