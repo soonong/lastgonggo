@@ -883,15 +883,13 @@ function normalizeNoticeDocument(html) {
       .replace(/<\/(td|th)\s*>/gi, ' | ')
       .replace(/<[^>]+>/g, ' '),
   )
-  const rawLines = source
-    .split(/\r?\n/)
-    .map((line) => normalizeLine(line))
-    .filter(Boolean)
-    .filter((line) => !/^\.(hwpBody|contents|Section)/i.test(line) && !/^@page\b/i.test(line))
-  if (!rawLines.length && imageCount) {
+  const rawLines = normalizeRawLines(source.split(/\r?\n/))
+  const contentLines = rawLines.filter(Boolean)
+  if (!contentLines.length && imageCount) {
     rawLines.push(`이미지형 공고문: 텍스트 추출 불가, 이미지 ${imageCount}개`)
+    contentLines.push(rawLines[0])
   }
-  const softBlocks = mergeSoftWrappedLines(rawLines)
+  const softBlocks = mergeSoftWrappedLines(contentLines)
   const hardBlocks = softBlocks.map((text, index) => {
     const numbering = detectNumbering(text)
     return {
@@ -905,7 +903,7 @@ function normalizeNoticeDocument(html) {
     }
   })
   const sections = classifySections(buildSections(hardBlocks), readSectionRuleRows())
-  const tables = detectTables(rawLines)
+  const tables = detectTables(contentLines)
   return {
     rawLines,
     softBlocks,
@@ -913,9 +911,30 @@ function normalizeNoticeDocument(html) {
     sections,
     tables,
     imageCount,
-    warnings: !rawLines.length || rawLines[0]?.startsWith('이미지형 공고문') ? ['본문 텍스트 없음: 이미지 OCR 또는 사람 확인 필요'] : [],
+    warnings: !contentLines.length || contentLines[0]?.startsWith('이미지형 공고문') ? ['본문 텍스트 없음: 이미지 OCR 또는 사람 확인 필요'] : [],
     normalizedText: softBlocks.join('\n'),
   }
+}
+
+function normalizeRawLines(lines) {
+  const result = []
+  let previousBlank = true
+  for (const sourceLine of lines) {
+    const line = normalizeLine(sourceLine)
+    const ignored = line && (/^\.(hwpBody|contents|Section)/i.test(line) || /^@page\b/i.test(line))
+    if (!line || ignored) {
+      if (!previousBlank) {
+        result.push('')
+        previousBlank = true
+      }
+      continue
+    }
+    result.push(line)
+    previousBlank = false
+  }
+  while (result.length && result[0] === '') result.shift()
+  while (result.length && result[result.length - 1] === '') result.pop()
+  return result
 }
 
 function normalizeLine(line) {
@@ -945,14 +964,21 @@ function mergeSoftWrappedLines(lines) {
   for (const line of lines) {
     const previous = blocks[blocks.length - 1] || ''
     const startsNew = isHardStart(line)
+    const previousIsHeading = isLikelyBlockHeading(previous)
     const previousEnds = /[.。:：;；)]$/.test(previous) || previous.endsWith('다') || previous.includes('|')
-    if (!previous || startsNew || previousEnds || line.includes('|')) {
+    if (!previous || startsNew || previousIsHeading || previousEnds || line.includes('|')) {
       blocks.push(line)
     } else {
       blocks[blocks.length - 1] = `${previous} ${line}`.replace(/\s+/g, ' ').trim()
     }
   }
   return blocks
+}
+
+function isLikelyBlockHeading(text) {
+  const numbering = detectNumbering(text)
+  if (numbering) return isLikelySectionHeading(numbering.제목 || '')
+  return isLikelySectionHeading(text)
 }
 
 function isHardStart(line) {
@@ -1305,6 +1331,11 @@ function buildParserParagraphBlocks(blocks) {
       continue
     }
     if (current) {
+      if (isLikelyBlockHeading(current)) {
+        flushParagraph()
+        result.push({ text, hasTable: false })
+        continue
+      }
       current = `${current} ${text}`.replace(/\s+/g, ' ').trim()
     } else {
       result.push({ text, hasTable: false })
