@@ -920,8 +920,9 @@ function normalizeNoticeDocument(html) {
 
 function normalizeLine(line) {
   return String(line || '')
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+/g, ' ')
+    .replace(/[\u00a0\u1680\u180e\u2000-\u200b\u202f\u205f\u3000\ufeff]/g, ' ')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .replace(/\s*([:：])\s*/g, '$1 ')
     .replace(/\s+\|/g, ' |')
     .replace(/\|\s+/g, '| ')
     .trim()
