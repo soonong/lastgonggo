@@ -2979,7 +2979,8 @@ td.status-오류 {
   text-decoration: none;
 }
 
-.file-preview-tab iframe {
+.file-preview-tab iframe,
+.file-preview-object {
   width: 100%;
   min-height: 620px;
   border: 0;
@@ -3022,6 +3023,12 @@ td.status-오류 {
   border-bottom: 1px solid #e4eaf1;
 }
 
+.qualification-head div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
 .qualification-head strong {
   overflow: hidden;
   color: #1f3f60;
@@ -3030,18 +3037,96 @@ td.status-오류 {
   white-space: nowrap;
 }
 
+.qualification-head small {
+  overflow: hidden;
+  color: #6a7b8d;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .qualification-head span {
   color: #647589;
   font-size: 12px;
+  white-space: nowrap;
 }
 
-.qualification-table {
-  overflow: visible;
+.qualification-accordion {
+  display: grid;
+  gap: 6px;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+  padding: 8px;
 }
 
-.qualification-table .table-wrap {
-  height: 300px;
-  min-height: 220px;
+.qualification-node,
+.qualification-leaf {
+  border: 1px solid #dfe7ef;
+  border-radius: 5px;
+  background: #ffffff;
+}
+
+.qualification-node summary,
+.qualification-leaf {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.qualification-node summary {
+  grid-template-columns: 18px minmax(110px, 0.9fr) minmax(0, 1.4fr);
+  cursor: pointer;
+  list-style: none;
+}
+
+.qualification-leaf {
+  grid-template-columns: minmax(110px, 0.9fr) minmax(0, 1.4fr);
+}
+
+.qualification-node summary::-webkit-details-marker {
+  display: none;
+}
+
+.qualification-node[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.qualification-node strong,
+.qualification-leaf strong {
+  overflow: hidden;
+  color: #1f3f60;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qualification-node em,
+.qualification-leaf em {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+  overflow: hidden;
+  color: #52677c;
+  font-style: normal;
+  font-size: 11px;
+}
+
+.qualification-node em span,
+.qualification-leaf em span {
+  overflow: hidden;
+  padding: 2px 6px;
+  background: #eef4fa;
+  border-radius: 999px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qualification-children {
+  display: grid;
+  gap: 5px;
+  padding: 0 8px 8px;
 }
 
 @media (max-width: 1280px) {

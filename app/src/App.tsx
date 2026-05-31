@@ -147,6 +147,22 @@ function valueToText(value: unknown) {
   return String(value)
 }
 
+const zeroPlaceholderKeepColumns = new Set(['공고번호_차수', '공고번호차수'])
+
+function isZeroPlaceholderValue(value: unknown) {
+  if (typeof value === 'number') return Object.is(value, 0)
+  if (typeof value !== 'string') return false
+  return /^[-+]?0+(?:\.0+)?%?$/.test(value.trim())
+}
+
+function blankZeroPlaceholders(row: NoticeRow) {
+  const next: NoticeRow = { ...row }
+  for (const [column, value] of Object.entries(next)) {
+    if (!zeroPlaceholderKeepColumns.has(column) && isZeroPlaceholderValue(value)) next[column] = ''
+  }
+  return next
+}
+
 function splitJongmokTokens(value: unknown) {
   return Array.from(
     new Set(
@@ -778,7 +794,7 @@ function App() {
     setStatus('API 호출 중 0/0')
     try {
       const data = await fetchA1ServerNotices(query)
-      const importedRows = applyCollectionImportFilters(data.rows)
+      const importedRows = applyCollectionImportFilters(data.rows).map(blankZeroPlaceholders)
       const nextFormatIssues = inspectFormatMismatches(importedRows, rules)
       setRawRows(importedRows)
       setPreRows([])
@@ -4972,7 +4988,12 @@ function NoticeDetailModal({
               </section>
             ))}
             {activeTab === '적격심사기준' ? (
-              <QualificationPanel detailKey={detailKey} status={qualificationStatus} rows={qualificationRows} />
+              <QualificationPanel
+                detailKey={detailKey}
+                status={qualificationStatus}
+                rows={qualificationRows}
+                noticeDate={valueToText(draftRow['공고일']) || valueToText(draftRow['입력일'])}
+              />
             ) : null}
             {activeTab !== '첨부파일' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
             <div className="detail-savebar">
@@ -5201,8 +5222,9 @@ function FilePreviewTab({ file }: { file?: { name: string; url: string; ext: str
   if (!file) return <div className="doc-placeholder">파일 탭을 선택하세요.</div>
   const previewUrl = filePreviewUrl(file)
   const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(file.ext)
-  const canFrame = file.url && ['pdf', 'html', 'htm', 'txt'].includes(file.ext)
-  const hwpViewer = file.ext === 'hwp' || file.ext === 'hwpx' ? externalDocumentViewerUrl(file) : ''
+  const isPdf = file.ext === 'pdf'
+  const canFrame = file.url && ['html', 'htm', 'txt'].includes(file.ext)
+  const hwpViewer = file.ext === 'hwp' || file.ext === 'hwpx' ? hwpPreviewUrl(file) : ''
   return (
     <div className="file-preview-tab">
       <div className="file-preview-head">
@@ -5213,6 +5235,10 @@ function FilePreviewTab({ file }: { file?: { name: string; url: string; ext: str
         <div className="file-preview-image">
           <img src={previewUrl} alt={file.name} />
         </div>
+      ) : isPdf && previewUrl ? (
+        <object className="file-preview-object" data={previewUrl} type="application/pdf">
+          <iframe title={file.name} src={previewUrl} />
+        </object>
       ) : canFrame && previewUrl ? (
         <iframe title={file.name} src={previewUrl} />
       ) : hwpViewer ? (
@@ -5233,9 +5259,9 @@ function filePreviewUrl(file: { name: string; url: string; ext: string }) {
   return '/api/file-preview?url=' + encodeURIComponent(file.url) + '&name=' + encodeURIComponent(file.name)
 }
 
-function externalDocumentViewerUrl(file: { name: string; url: string; ext: string }) {
+function hwpPreviewUrl(file: { name: string; url: string; ext: string }) {
   if (!file.url) return ''
-  return 'https://docs.google.com/gview?embedded=1&url=' + encodeURIComponent(file.url)
+  return '/api/hwp-preview?url=' + encodeURIComponent(file.url) + '&name=' + encodeURIComponent(file.name)
 }
 function attachmentExt(value: string) {
   const clean = value.split('?')[0]
@@ -5257,29 +5283,134 @@ function QualificationPanel({
   detailKey,
   status,
   rows,
+  noticeDate,
 }: {
   detailKey: string
   status: string
   rows: NoticeRow[]
+  noticeDate: string
 }) {
   if (!detailKey) {
     return <div className="qualification-box empty">적격평가기준_세부 값이 없어 A4 기준을 불러오지 않습니다.</div>
   }
-  const columns = ['시행일', '발주처', '적격심사기준', '이름', '형태', '내용', '배점', '메모']
+  const activeRows = selectActiveQualificationRows(rows, noticeDate)
+  const tree = buildQualificationTree(activeRows)
+  const summary = qualificationSummary(activeRows)
   return (
     <div className="qualification-box">
       <div className="qualification-head">
-        <strong>{detailKey}</strong>
-        <span>{status || '대기'}</span>
+        <div>
+          <strong>{detailKey}</strong>
+          <small>
+            시행일 {summary.시행일 || '-'} · 통과 {summary.통과점수 || '-'} · 가격 {summary.가격점수 || '-'}
+          </small>
+        </div>
+        <span>{status || '대기'} · 표시 {activeRows.length.toLocaleString()}행</span>
       </div>
-      {rows.length ? (
-        <div className="qualification-table">
-          <DataTable columns={columns} rows={rows.slice(0, 80)} emptyText="불러온 기준 row가 없습니다." />
+      {activeRows.length ? (
+        <div className="qualification-accordion">
+          {tree.map((node) => (
+            <QualificationNodeView key={node.key} node={node} depth={0} />
+          ))}
         </div>
       ) : (
         <div className="detail-empty">불러온 기준 row가 없습니다.</div>
       )}
     </div>
+  )
+}
+
+type QualificationNode = {
+  key: string
+  name: string
+  row?: NoticeRow
+  children: QualificationNode[]
+}
+
+function selectActiveQualificationRows(rows: NoticeRow[], noticeDate: string) {
+  if (!rows.length) return []
+  const byDate = new Map<string, NoticeRow[]>()
+  for (const row of rows) {
+    const 시행일 = valueToText(row['시행일']).trim() || '미지정'
+    byDate.set(시행일, [...(byDate.get(시행일) ?? []), row])
+  }
+  const dates = Array.from(byDate.keys()).filter((date) => date !== '미지정').sort()
+  if (!dates.length) return rows
+  const 기준일 = normalizeDateForCompare(noticeDate)
+  const selected = 기준일
+    ? dates.filter((date) => normalizeDateForCompare(date) <= 기준일).pop() || dates[0]
+    : dates[dates.length - 1]
+  return byDate.get(selected) ?? rows
+}
+
+function normalizeDateForCompare(value: string) {
+  const match = valueToText(value).match(/(\d{4})[-./년\s]*(\d{1,2})[-./월\s]*(\d{1,2})/)
+  if (!match) return ''
+  return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
+}
+
+function buildQualificationTree(rows: NoticeRow[]) {
+  const nodeByName = new Map<string, QualificationNode>()
+  const roots: QualificationNode[] = []
+  rows.forEach((row, index) => {
+    const name = valueToText(row['이름']).trim() || `항목_${index + 1}`
+    if (!nodeByName.has(name)) nodeByName.set(name, { key: `${name}-${index}`, name, row, children: [] })
+    else if (!nodeByName.get(name)?.row) nodeByName.get(name)!.row = row
+  })
+  rows.forEach((row, index) => {
+    const name = valueToText(row['이름']).trim() || `항목_${index + 1}`
+    const parentName = valueToText(row['메모']).trim()
+    const node = nodeByName.get(name)!
+    if (parentName && nodeByName.has(parentName) && parentName !== name) {
+      const parent = nodeByName.get(parentName)!
+      if (!parent.children.includes(node)) parent.children.push(node)
+    } else if (!roots.includes(node)) {
+      roots.push(node)
+    }
+  })
+  return roots.length ? roots : Array.from(nodeByName.values())
+}
+
+function qualificationSummary(rows: NoticeRow[]) {
+  const find = (name: string) => rows.find((row) => valueToText(row['이름']) === name)
+  return {
+    시행일: valueToText(rows[0]?.['시행일']),
+    통과점수: valueToText(find('적격통과점수')?.['내용'] || find('적격통과점수')?.['배점']),
+    가격점수: valueToText(find('입찰가격점수')?.['배점'] || find('입찰가격점수')?.['내용']),
+  }
+}
+
+function QualificationNodeView({ node, depth }: { node: QualificationNode; depth: number }) {
+  const row = node.row ?? {}
+  const hasChildren = node.children.length > 0
+  const body = (
+    <>
+      <span>{valueToText(row['형태']) ? `형태 ${valueToText(row['형태'])}` : '형태 -'}</span>
+      <span>{valueToText(row['내용']) ? `내용 ${valueToText(row['내용'])}` : '내용 -'}</span>
+      <span>{valueToText(row['배점']) ? `배점 ${valueToText(row['배점'])}` : '배점 -'}</span>
+    </>
+  )
+  if (!hasChildren) {
+    return (
+      <div className="qualification-leaf" style={{ marginLeft: depth * 14 }}>
+        <strong>{node.name}</strong>
+        <em>{body}</em>
+      </div>
+    )
+  }
+  return (
+    <details className="qualification-node" open={depth < 2} style={{ marginLeft: depth * 14 }}>
+      <summary>
+        <ChevronDown size={14} />
+        <strong>{node.name}</strong>
+        <em>{body}</em>
+      </summary>
+      <div className="qualification-children">
+        {node.children.map((child) => (
+          <QualificationNodeView key={child.key} node={child} depth={depth + 1} />
+        ))}
+      </div>
+    </details>
   )
 }
 

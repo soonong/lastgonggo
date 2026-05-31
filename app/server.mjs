@@ -1,13 +1,16 @@
 import http from 'node:http'
 import https from 'node:https'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
 const port = Number(process.env.SERVER_PORT || 3101)
+const hwpPreviewCache = new Map()
 
 loadEnv(path.join(repoRoot, '.env.local'))
 loadEnv(path.join(__dirname, '.env.local'))
@@ -523,6 +526,175 @@ async function proxyFilePreview(reqUrl, res) {
     'Cache-Control': 'no-store',
   })
   res.end(upstream.body)
+}
+
+async function proxyHwpPreview(reqUrl, res) {
+  const target = reqUrl.searchParams.get('url') || ''
+  const fallbackName = target && /^https?:\/\//i.test(target) ? path.basename(new URL(target).pathname) : 'attachment.hwp'
+  const name = reqUrl.searchParams.get('name') || fallbackName
+  if (!/^https?:\/\//i.test(target)) {
+    sendHtml(
+      res,
+      200,
+      renderPreviewMessage('HWP 미리보기', '다운로드 URL이 없어 HWP를 변환할 수 없습니다.', name),
+    )
+    return
+  }
+
+  const cacheKey = `${target}\n${name}`
+  const cached = hwpPreviewCache.get(cacheKey)
+  if (cached) {
+    sendHtml(res, 200, cached)
+    return
+  }
+
+  const upstream = await fetchBinaryLoose(target, {
+    Accept: '*/*',
+    Referer: 'https://bidding2.kr/',
+    'User-Agent': 'Mozilla/5.0 bidding-preprocess-local',
+  })
+  if (upstream.status >= 400) {
+    sendHtml(
+      res,
+      200,
+      renderPreviewMessage('HWP 미리보기 실패', `첨부파일을 가져오지 못했습니다. (${upstream.status})`, name),
+    )
+    return
+  }
+
+  try {
+    const html = await convertHwpBufferToHtml(upstream.body)
+    const wrapped = wrapConvertedHwpHtml(html, name)
+    hwpPreviewCache.set(cacheKey, wrapped)
+    if (hwpPreviewCache.size > 30) hwpPreviewCache.delete(hwpPreviewCache.keys().next().value)
+    sendHtml(res, 200, wrapped)
+  } catch (error) {
+    sendHtml(
+      res,
+      200,
+      renderPreviewMessage(
+        'HWP 미리보기 실패',
+        error instanceof Error ? error.message : String(error),
+        name,
+      ),
+    )
+  }
+}
+
+function convertHwpBufferToHtml(buffer) {
+  return new Promise((resolve, reject) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lastgonggo-hwp-'))
+    const hwpPath = path.join(tmpDir, 'input.hwp')
+    fs.writeFileSync(hwpPath, buffer)
+    const script = `
+from contextlib import closing
+from hwp5.xmlmodel import Hwp5File
+from hwp5.hwp5html import HTMLTransform
+import io
+import sys
+
+with closing(Hwp5File(sys.argv[1])) as hwp5file:
+    out = io.BytesIO()
+    HTMLTransform().transform_hwp5_to_xhtml(hwp5file, out)
+    sys.stdout.buffer.write(out.getvalue())
+`
+    const child = spawn(process.env.PYTHON || 'python', ['-c', script, hwpPath], {
+      windowsHide: true,
+      maxBuffer: 1024 * 1024 * 20,
+    })
+    const stdout = []
+    const stderr = []
+    const timer = setTimeout(() => {
+      child.kill()
+      reject(new Error('HWP 변환 시간이 초과되었습니다.'))
+    }, 30_000)
+    child.stdout.on('data', (chunk) => stdout.push(chunk))
+    child.stderr.on('data', (chunk) => stderr.push(chunk))
+    child.on('error', (error) => {
+      clearTimeout(timer)
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+      reject(error)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+      const body = Buffer.concat(stdout)
+      if (code === 0 && body.length) {
+        resolve(body.toString('utf8'))
+        return
+      }
+      const message = Buffer.concat(stderr).toString('utf8').trim() || `HWP 변환기가 종료 코드 ${code}로 종료되었습니다.`
+      reject(new Error(message))
+    })
+  })
+}
+
+function wrapConvertedHwpHtml(html, name) {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(name)}</title>
+  <style>
+    body { margin: 0; padding: 28px; background: #fff; color: #111827; font-family: "Malgun Gothic", Arial, sans-serif; }
+    .hwp-preview-title { margin: 0 0 18px; padding-bottom: 10px; border-bottom: 1px solid #d7e0ea; color: #1f3f60; font-size: 15px; }
+    table { border-collapse: collapse; }
+    td, th { border-color: #6b7280; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>
+  <h1 class="hwp-preview-title">${escapeHtml(name)}</h1>
+  ${extractBodyHtml(html)}
+</body>
+</html>`
+}
+
+function extractBodyHtml(html) {
+  const match = String(html || '').match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+  return match ? match[1] : String(html || '')
+}
+
+function renderPreviewMessage(title, message, name) {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { display: grid; min-height: 100vh; margin: 0; place-items: center; background: #f8fafc; color: #24384d; font-family: "Malgun Gothic", Arial, sans-serif; }
+    div { max-width: 560px; padding: 24px; border: 1px solid #d7e0ea; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+    h1 { margin: 0 0 12px; font-size: 18px; }
+    p { margin: 6px 0; line-height: 1.6; }
+    code { color: #225f9f; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>${escapeHtml(title)}</h1>
+    <p><strong>${escapeHtml(name || '첨부파일')}</strong></p>
+    <p>${escapeHtml(message)}</p>
+  </div>
+</body>
+</html>`
+}
+
+function sendHtml(res, status, html) {
+  res.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
+  })
+  res.end(html)
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 async function documentPickaxeTest(req, res) {
@@ -1596,6 +1768,11 @@ const server = http.createServer(async (req, res) => {
 
     if (reqUrl.pathname === '/api/file-preview') {
       await proxyFilePreview(reqUrl, res)
+      return
+    }
+
+    if (reqUrl.pathname === '/api/hwp-preview') {
+      await proxyHwpPreview(reqUrl, res)
       return
     }
 
