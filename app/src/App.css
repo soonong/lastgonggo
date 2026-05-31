@@ -844,12 +844,12 @@ th {
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 36px;
+  height: 40px;
+  padding: 3px 4px;
   color: #324458;
   background: #f1f4f7;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .cell-text {
@@ -865,12 +865,12 @@ th {
 
 .resizable-th {
   position: sticky;
-  padding-right: 18px;
+  padding-right: 10px;
 }
 
 .th-sort-button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 14px;
+  grid-template-columns: minmax(0, 1fr) 8px;
   align-items: center;
   width: 100%;
   height: 100%;
@@ -892,17 +892,21 @@ th {
 }
 
 .th-label {
-  display: block;
+  display: -webkit-box;
+  max-height: 28px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 14px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .sort-indicator {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
+  width: 8px;
   color: #2f6398;
   font-size: 9px;
   line-height: 1;
@@ -919,7 +923,7 @@ th.sorted-desc {
   top: 0;
   right: 0;
   z-index: 6;
-  width: 14px;
+  width: 8px;
   height: 100%;
   cursor: col-resize;
   pointer-events: auto;
@@ -929,8 +933,8 @@ th.sorted-desc {
 .col-resizer::after {
   position: absolute;
   top: 7px;
-  right: 5px;
-  width: 3px;
+  right: 2px;
+  width: 2px;
   height: calc(100% - 14px);
   background: #c3cfdb;
   border-radius: 999px;
@@ -1166,6 +1170,30 @@ tbody tr.selected-row td {
 
 td.empty-cell {
   background: #fff8e9;
+}
+
+td.source-match {
+  background: #e8f6ee;
+}
+
+td.source-mixed {
+  background: #fff3c4;
+}
+
+tbody tr:hover td.source-match {
+  background: #ddf1e7;
+}
+
+tbody tr:hover td.source-mixed {
+  background: #ffeaa3;
+}
+
+tbody tr.selected-row td.source-match {
+  background: #d7ebdf;
+}
+
+tbody tr.selected-row td.source-mixed {
+  background: #f8df95;
 }
 
 td.status-정상 {
@@ -2866,6 +2894,277 @@ td.status-오류 {
 .detail-savebar button {
   height: 34px;
   padding: 0 14px;
+}
+
+.jongmok-detail-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.jongmok-top-card,
+.jongmok-part,
+.jongmok-item-card,
+.dongil-entry {
+  border: 1px solid #dfe7ef;
+  border-radius: 5px;
+  background: #ffffff;
+}
+
+.jongmok-top-card,
+.jongmok-part {
+  padding: 10px;
+}
+
+.jongmok-card-head,
+.jongmok-part-head,
+.dongil-category-head,
+.dongil-entry-head,
+.jongmok-item-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jongmok-card-head,
+.jongmok-part-head {
+  margin-bottom: 8px;
+}
+
+.jongmok-card-head strong,
+.jongmok-part-head strong,
+.dongil-category-head strong,
+.dongil-entry-head strong,
+.jongmok-item-title strong {
+  overflow: hidden;
+  color: #1f3852;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.jongmok-card-head span,
+.jongmok-part-head span,
+.dongil-category-head span {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  color: #5b6f84;
+  background: #eef4fa;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.jongmok-top-fields,
+.jongmok-field-list,
+.dongil-field-grid {
+  display: grid;
+  gap: 0;
+}
+
+.jongmok-field {
+  display: grid;
+  grid-template-columns: minmax(96px, 34%) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #e6edf4;
+}
+
+.jongmok-field > span {
+  overflow: hidden;
+  color: #4f6174;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.jongmok-field input,
+.jongmok-field select,
+.jongmok-field textarea {
+  width: 100%;
+  color: #17202a;
+  background: #ffffff;
+}
+
+.jongmok-field input,
+.jongmok-field select {
+  height: 34px;
+}
+
+.jongmok-field textarea {
+  min-height: 34px;
+  max-height: 150px;
+  resize: vertical;
+}
+
+.jongmok-field--textarea {
+  align-items: start;
+}
+
+.jongmok-field--textarea > span {
+  padding-top: 8px;
+}
+
+.jongmok-meta-grid {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 6px 10px;
+  color: #52677c;
+  font-size: 12px;
+}
+
+.jongmok-meta-grid span {
+  color: #728397;
+  font-weight: 900;
+}
+
+.jongmok-meta-grid strong {
+  overflow: hidden;
+  color: #1f3852;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jongmok-item-card {
+  display: grid;
+  position: relative;
+  overflow: hidden;
+  gap: 0;
+  margin-top: 10px;
+  padding: 0;
+  border-color: #cbd9e8;
+  box-shadow: 0 1px 2px rgba(25, 55, 88, 0.06);
+}
+
+.jongmok-item-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  content: "";
+  background: #3c74ad;
+}
+
+.jongmok-item-card--tone-1::before {
+  background: #5f8f5a;
+}
+
+.jongmok-item-card--tone-2::before {
+  background: #b77a2d;
+}
+
+.jongmok-item-card--tone-3::before {
+  background: #7566a5;
+}
+
+.jongmok-item-title {
+  min-height: 38px;
+  padding: 8px 10px 8px 14px;
+  background: #f6f9fc;
+  border-bottom: 1px solid #e3ebf4;
+}
+
+.jongmok-item-title svg {
+  color: #2f66a2;
+}
+
+.jongmok-item-index,
+.jongmok-item-meta {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.jongmok-item-index {
+  color: #2c5e93;
+  background: #e6f0fa;
+}
+
+.jongmok-item-meta {
+  margin-left: auto;
+  color: #68798b;
+  background: #edf2f7;
+}
+
+.jongmok-subsection-title {
+  padding: 9px 10px 0 14px;
+  color: #728397;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.jongmok-item-card > .jongmok-field-list {
+  padding: 2px 10px 8px 14px;
+}
+
+.dongil-editor {
+  display: grid;
+  gap: 8px;
+  margin: 0 10px 10px 14px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f6;
+}
+
+.dongil-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.dongil-add-row input {
+  min-width: 0;
+  height: 34px;
+}
+
+.dongil-add-row button,
+.dongil-entry-head button {
+  height: 34px;
+  padding: 0 10px;
+}
+
+.dongil-category {
+  display: grid;
+  gap: 6px;
+}
+
+.dongil-category-head {
+  min-height: 28px;
+  padding-top: 2px;
+}
+
+.dongil-entry {
+  padding: 8px;
+  background: #fbfcfe;
+}
+
+.dongil-entry-head {
+  margin-bottom: 5px;
+}
+
+.dongil-entry-head button {
+  width: 34px;
+  padding: 0;
+  color: #8f1d1d;
+}
+
+.jongmok-empty {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  color: #68798b;
+  background: #f8fafc;
+  border: 1px dashed #cdd8e5;
+  border-radius: 5px;
+  text-align: center;
+  font-size: 13px;
 }
 
 .region-issue-banner {

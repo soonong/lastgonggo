@@ -50,6 +50,7 @@ import {
   type PipelineStats,
   type PreprocessSettings,
 } from './pipeline'
+import { JongmokDetailPanel } from './jongmokDetail'
 import type { NoticeRow, ParserNormalizationResult, ParserResult, ServerColumnProfile, StandardColumnRule } from './types'
 
 type Stage = 'flow' | 'collect' | 'preprocess' | 'human' | 'output' | 'rules'
@@ -138,8 +139,20 @@ const priorityColumns = [
   '적격_처치방법',
 ]
 
-const hiddenMainColumns = new Set(['공고본문', '공고본문_HTML', '문서곡괭이근거'])
+const SOURCE_COMPARE_COLUMN = '출처비교JSON'
+const hiddenMainColumns = new Set(['공고본문', '공고본문_HTML', '문서곡괭이근거', SOURCE_COMPARE_COLUMN])
 const conservativeKeepApiColumns = new Set(['공고번호', '공사명', '발주처', '입력일', '지역제한', '종목', '추정가격', '기초금액', '추정금액'])
+
+type SourceCompareEntry = {
+  서버공고: string
+  문서곡괭이: string
+  선택출처: string
+  판정: '일치' | '불일치' | '서버공고만' | '문서곡괭이만'
+  조건판단형태?: string
+  rule_id?: string
+  키워드?: string
+  근거?: string
+}
 
 function valueToText(value: unknown) {
   if (value === null || value === undefined) return ''
@@ -160,6 +173,15 @@ function blankZeroPlaceholders(row: NoticeRow) {
   for (const [column, value] of Object.entries(next)) {
     if (!zeroPlaceholderKeepColumns.has(column) && isZeroPlaceholderValue(value)) next[column] = ''
   }
+  return next
+}
+
+function preserveNoticeRoundText(row: NoticeRow) {
+  const next: NoticeRow = { ...row }
+  const noticeNo = valueToText(next['공고번호']).trim()
+  const round = noticeNo.match(/-(\d+)$/)?.[1] ?? '0'
+  next['공고번호_차수'] = round
+  if ('공고번호차수' in next) next['공고번호차수'] = round
   return next
 }
 
@@ -372,15 +394,78 @@ function joinMemo(existing: unknown, memo: string) {
   return `${current} / ${memo}`
 }
 
+function readSourceCompare(row: NoticeRow): Record<string, SourceCompareEntry> {
+  const raw = row[SOURCE_COMPARE_COLUMN]
+  if (!raw) return {}
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, SourceCompareEntry>
+  try {
+    const parsed = JSON.parse(valueToText(raw))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function hasSourceValue(value: string) {
+  return value.trim() !== ''
+}
+
+function sourceCompareVerdict(serverValue: string, parserValue: string): SourceCompareEntry['판정'] | '' {
+  const hasServer = hasSourceValue(serverValue)
+  const hasParser = hasSourceValue(parserValue)
+  if (!hasServer && !hasParser) return ''
+  if (hasServer && !hasParser) return '서버공고만'
+  if (!hasServer && hasParser) return '문서곡괭이만'
+  return normalizeCompare(serverValue) === normalizeCompare(parserValue) ? '일치' : '불일치'
+}
+
+function buildSourceCompareEntry(
+  field: string,
+  serverValue: string,
+  parserValue: string,
+  finalValue: string,
+  result: ParserResult,
+  rules: StandardColumnRule[],
+): SourceCompareEntry | null {
+  const verdict = sourceCompareVerdict(serverValue, parserValue)
+  if (!verdict) return null
+  const priority = rules.find((rule) => rule.항목 === field)?.우선순위 ?? ''
+  const match = result.matches?.find((item) => item.column === field)
+  const selectedSource = hasSourceValue(parserValue) && normalizeCompare(finalValue) === normalizeCompare(parserValue)
+    ? '문서곡괭이'
+    : hasSourceValue(serverValue) && normalizeCompare(finalValue) === normalizeCompare(serverValue)
+      ? '서버공고'
+      : priority.includes('문서곡괭이')
+        ? '문서곡괭이'
+        : '서버공고'
+
+  return {
+    서버공고: serverValue,
+    문서곡괭이: parserValue,
+    선택출처: selectedSource,
+    판정: verdict,
+    조건판단형태: match?.type,
+    rule_id: match?.ruleId,
+    키워드: match?.matchedKeyword,
+    근거: match?.sourceText || result.evidence?.[field],
+  }
+}
+
 function mergeParserFields(row: NoticeRow, result: ParserResult, rules: StandardColumnRule[]) {
   const next: NoticeRow = { ...row }
   const filled: string[] = []
   const conflicts: string[] = []
   const evidenceRows: string[] = []
+  const sourceCompare = readSourceCompare(row)
 
   for (const [field, value] of Object.entries(result.fields ?? {})) {
     const candidate = valueToText(value).trim()
-    if (!candidate) continue
+    const serverValue = valueToText(row[field]).trim()
+    if (!candidate) {
+      const compareEntry = buildSourceCompareEntry(field, serverValue, '', valueToText(next[field]).trim(), result, rules)
+      if (compareEntry) sourceCompare[field] = compareEntry
+      continue
+    }
 
     const current = valueToText(next[field]).trim()
     const priority = rules.find((rule) => rule.항목 === field)?.우선순위 ?? ''
@@ -395,6 +480,8 @@ function mergeParserFields(row: NoticeRow, result: ParserResult, rules: Standard
 
     const evidence = result.evidence?.[field]
     if (evidence) evidenceRows.push(`${field}: ${evidence}`)
+    const compareEntry = buildSourceCompareEntry(field, serverValue, candidate, valueToText(next[field]).trim(), result, rules)
+    if (compareEntry) sourceCompare[field] = compareEntry
   }
 
   if (result.textPreview && !valueToText(next['공고본문'])) {
@@ -412,12 +499,53 @@ function mergeParserFields(row: NoticeRow, result: ParserResult, rules: Standard
   if (conflicts.length) {
     next['검증메모'] = joinMemo(next['검증메모'], `API/문서곡괭이 값 충돌: ${conflicts.join(',')}`)
   }
+  if (Object.keys(sourceCompare).length) {
+    next[SOURCE_COMPARE_COLUMN] = JSON.stringify(sourceCompare)
+  }
 
   return { row: next, filled, conflicts }
 }
 
 function normalizeCompare(value: string) {
   return value.replace(/[\s,]/g, '').toLowerCase()
+}
+
+function sourceCompareCellClass(row: NoticeRow, col: string) {
+  const entry = readSourceCompare(row)[col]
+  if (!entry) return ''
+  if (entry.판정 === '일치') return 'source-match'
+  return 'source-mixed'
+}
+
+function formatSourceTooltipValue(value: string, col: string, displayFormatMap: Record<string, string>) {
+  if (!hasSourceValue(value)) return '(없음)'
+  return formatCellForDisplay(value, displayFormatMap[col])
+}
+
+function truncateTooltip(value: string, max = 500) {
+  const clean = value.replace(/\s+/g, ' ').trim()
+  return clean.length > max ? `${clean.slice(0, max)}...` : clean
+}
+
+function buildSourceCompareTooltip(row: NoticeRow, col: string, displayFormatMap: Record<string, string>, displayText: string) {
+  const entry = readSourceCompare(row)[col]
+  if (!entry) return ''
+  const lines = [
+    `최종값: ${displayText || '(빈값)'}`,
+    `선택출처: ${entry.선택출처 || '-'}`,
+    '',
+    `서버공고: ${formatSourceTooltipValue(entry.서버공고, col, displayFormatMap)}`,
+    `문서곡괭이: ${formatSourceTooltipValue(entry.문서곡괭이, col, displayFormatMap)}`,
+    `판정: ${entry.판정}`,
+  ]
+  const meta = [
+    entry.조건판단형태 ? `조건판단형태=${entry.조건판단형태}` : '',
+    entry.rule_id ? `rule=${entry.rule_id}` : '',
+    entry.키워드 ? `키워드=${entry.키워드}` : '',
+  ].filter(Boolean)
+  if (meta.length) lines.push('', meta.join(' / '))
+  if (entry.근거) lines.push(`근거: ${truncateTooltip(entry.근거)}`)
+  return lines.join('\n')
 }
 
 function getColumns(rows: NoticeRow[], profiles: ServerColumnProfile[], rules: StandardColumnRule[] = []) {
@@ -794,7 +922,7 @@ function App() {
     setStatus('API 호출 중 0/0')
     try {
       const data = await fetchA1ServerNotices(query)
-      const importedRows = applyCollectionImportFilters(data.rows).map(blankZeroPlaceholders)
+      const importedRows = applyCollectionImportFilters(data.rows).map(preserveNoticeRoundText).map(blankZeroPlaceholders)
       const nextFormatIssues = inspectFormatMismatches(importedRows, rules)
       setRawRows(importedRows)
       setPreRows([])
@@ -1540,6 +1668,7 @@ function App() {
           displayFormatMap={displayFormatMap}
           columnInputOptions={columnInputOptions}
           fieldSourceMap={fieldSourceMap}
+          settings={preprocessSettings}
           onSave={saveDetailRow}
           onClose={() => setDetailRow(null)}
         />
@@ -1839,7 +1968,7 @@ function CollectionView({
           <option value={500}>500행</option>
         </select>
       </div>
-      <DataTable columns={columns} rows={rows} emptyText="API 호출로 서버공고를 불러오세요." onRowClick={onRowOpen} tableId="main:collect" displayFormatMap={displayFormatMap} />
+      <DataTable columns={columns} rows={rows} emptyText="API 호출로 서버공고를 불러오세요." onRowClick={onRowOpen} tableId="main:collect" columnWidthScope={NOTICE_STAGE_COLUMN_WIDTH_SCOPE} displayFormatMap={displayFormatMap} />
     </section>
   )
 }
@@ -1880,7 +2009,7 @@ function PreprocessView({
             </button>
           </div>
         </div>
-        <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} tableId="main:preprocess" displayFormatMap={displayFormatMap} />
+        <DataTable columns={columns} rows={rows} emptyText="전처리를 실행하세요." onRowClick={onRowOpen} tableId="main:preprocess" columnWidthScope={NOTICE_STAGE_COLUMN_WIDTH_SCOPE} displayFormatMap={displayFormatMap} sourceCompareMode />
       </section>
     </>
   )
@@ -1917,6 +2046,7 @@ function HumanView({
           rows={rows}
           emptyText="전처리 후 공고관리 대상을 확인하세요."
           tableId="main:human"
+          columnWidthScope={NOTICE_STAGE_COLUMN_WIDTH_SCOPE}
           displayFormatMap={displayFormatMap}
           selectable
           selectedRowKeys={selectedRowKeys}
@@ -3951,6 +4081,7 @@ function OutputView({
         emptyText="최종분류를 실행하세요."
         onRowClick={onRowOpen}
         tableId="main:output"
+        columnWidthScope={NOTICE_STAGE_COLUMN_WIDTH_SCOPE}
         displayFormatMap={displayFormatMap}
         selectable
         selectedRowKeys={selectedRowKeys}
@@ -3960,6 +4091,8 @@ function OutputView({
   )
 }
 
+const NOTICE_STAGE_COLUMN_WIDTH_SCOPE = 'main:notice-stages'
+const LEGACY_NOTICE_STAGE_COLUMN_WIDTH_SCOPES = ['main:collect', 'main:preprocess', 'main:human', 'main:output']
 const tableColumnWidthCache = new Map<string, Record<string, number>>()
 
 function loadColumnWidthCache(key: string) {
@@ -3968,7 +4101,23 @@ function loadColumnWidthCache(key: string) {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return {}
     const raw = window.localStorage.getItem(key)
-    if (!raw) return {}
+    if (!raw) {
+      const sharedNoticeStageKey = `lastgonggo.columnWidths.${NOTICE_STAGE_COLUMN_WIDTH_SCOPE}`
+      if (key !== sharedNoticeStageKey) return {}
+
+      const migrated: Record<string, number> = {}
+      for (const legacyScope of LEGACY_NOTICE_STAGE_COLUMN_WIDTH_SCOPES) {
+        const legacyRaw = window.localStorage.getItem(`lastgonggo.columnWidths.${legacyScope}`)
+        if (!legacyRaw) continue
+        const legacyParsed = JSON.parse(legacyRaw)
+        if (typeof legacyParsed === 'object' && legacyParsed) Object.assign(migrated, legacyParsed)
+      }
+      if (Object.keys(migrated).length) {
+        saveColumnWidthCache(key, migrated)
+        return migrated
+      }
+      return {}
+    }
     const parsed = JSON.parse(raw)
     return typeof parsed === 'object' && parsed ? parsed : {}
   } catch {
@@ -3992,6 +4141,7 @@ function DataTable({
   rows,
   emptyText,
   tableId,
+  columnWidthScope,
   selectable = false,
   selectedRowKeys = [],
   onSelectedRowKeysChange,
@@ -4004,6 +4154,7 @@ function DataTable({
   columnHelpMap = {},
   displayFormatMap = {},
   expandableTextColumns = [],
+  sourceCompareMode = false,
   cellDisabled,
   onCellChange,
   rowClassName,
@@ -4012,6 +4163,7 @@ function DataTable({
   rows: NoticeRow[]
   emptyText: string
   tableId?: string
+  columnWidthScope?: string
   selectable?: boolean
   selectedRowKeys?: string[]
   onSelectedRowKeysChange?: (keys: string[]) => void
@@ -4024,13 +4176,14 @@ function DataTable({
   columnHelpMap?: Record<string, string>
   displayFormatMap?: Record<string, string>
   expandableTextColumns?: string[]
+  sourceCompareMode?: boolean
   cellDisabled?: (row: NoticeRow, col: string) => boolean
   onCellChange?: (row: NoticeRow, col: string, value: string) => void
   rowClassName?: (row: NoticeRow) => string
 }) {
   const widthStorageKey = useMemo(
-    () => `lastgonggo.columnWidths.${tableId || columns.join('|')}`,
-    [columns, tableId],
+    () => `lastgonggo.columnWidths.${columnWidthScope || tableId || columns.join('|')}`,
+    [columns, columnWidthScope, tableId],
   )
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const [sortState, setSortState] = useState<{ col: string; dir: 'asc' | 'desc' } | null>(null)
@@ -4243,6 +4396,8 @@ function DataTable({
                   const disabled = cellDisabled?.(row, col) ?? false
                   const rawText = valueToText(row[col])
                   const displayText = editable ? rawText : formatCellForDisplay(row[col], displayFormatMap[col])
+                  const sourceClass = sourceCompareMode ? sourceCompareCellClass(row, col) : ''
+                  const sourceTooltip = sourceCompareMode ? buildSourceCompareTooltip(row, col, displayFormatMap, displayText) : ''
                   return (
                   <td
                     key={col}
@@ -4251,9 +4406,10 @@ function DataTable({
                     multiOptions ? 'multi-cell' : '',
                     valueToText(row[col]).trim() === '' ? 'empty-cell' : '',
                     col === '검증상태' ? `status-${valueToText(row[col])}` : '',
+                    sourceClass,
                   ].join(' ')}
                   style={columnStyle(col)}
-                  title={displayText === rawText ? rawText : `${displayText}\n원본: ${rawText}`}
+                  title={sourceTooltip || (displayText === rawText ? rawText : `${displayText}\n원본: ${rawText}`)}
                 >
                     {editable && standardColumnMode && CHECKBOX_COLUMNS.has(col) ? (
                       <label className="cell-checkbox" onClick={(event) => event.stopPropagation()} title={helpForColumn(col)}>
@@ -4431,6 +4587,7 @@ function NoticeDetailModal({
   displayFormatMap,
   columnInputOptions,
   fieldSourceMap,
+  settings,
   onSave,
   onClose,
 }: {
@@ -4440,6 +4597,7 @@ function NoticeDetailModal({
   displayFormatMap: Record<string, string>
   columnInputOptions: Record<string, string[]>
   fieldSourceMap: Record<string, string>
+  settings: PreprocessSettings
   onSave: (row: NoticeRow) => void
   onClose: () => void
 }) {
@@ -4479,11 +4637,7 @@ function NoticeDetailModal({
   }, [row])
 
   const detailColumnWidths = useMemo(() => {
-    const merged: Record<string, number> = {}
-    for (const key of ['main:collect', 'main:preprocess', 'main:human']) {
-      Object.assign(merged, loadColumnWidthCache(`lastgonggo.columnWidths.${key}`))
-    }
-    return merged
+    return loadColumnWidthCache(`lastgonggo.columnWidths.${NOTICE_STAGE_COLUMN_WIDTH_SCOPE}`)
   }, [columns])
 
   function detailColumnWidth(col: string) {
@@ -4884,7 +5038,15 @@ function NoticeDetailModal({
             ))}
           </div>
           <div className="detail-right__content">
-            {activeTab === '첨부파일' ? (
+            {activeTab === '종목' ? (
+              <JongmokDetailPanel
+                row={draftRow}
+                settings={settings}
+                displayFormatMap={displayFormatMap}
+                onFocusField={focusDetailField}
+                onPatch={(patch) => setDraftRow((prev) => ({ ...prev, ...patch }))}
+              />
+            ) : activeTab === '첨부파일' ? (
               <AttachmentPanel
                 status={attachmentStatus}
                 files={attachments}
@@ -4993,7 +5155,7 @@ function NoticeDetailModal({
                 noticeDate={valueToText(draftRow['공고일']) || valueToText(draftRow['입력일'])}
               />
             ) : null}
-            {activeTab !== '첨부파일' && activeTab !== '적격심사기준' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
+            {activeTab !== '종목' && activeTab !== '첨부파일' && activeTab !== '적격심사기준' && !visibleFields.length ? <div className="detail-empty">이 탭에 표시할 값이 아직 없습니다.</div> : null}
             <div className="detail-savebar">
               <button
                 className="primary"

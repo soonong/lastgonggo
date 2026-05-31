@@ -560,7 +560,7 @@ function parseDate(value: string) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function buildJongmok(row: NoticeRow, settings: PreprocessSettings): JongmokBuildResult | null {
+export function buildJongmok(row: NoticeRow, settings: PreprocessSettings): JongmokBuildResult | null {
   const catalog = buildJongmokCatalog(settings.jongmokMap ?? [])
   const rawItems = splitValues(row['종목'])
   if (!catalog.length || !rawItems.length) return null
