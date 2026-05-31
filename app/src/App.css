@@ -2699,22 +2699,69 @@ td.status-오류 {
 }
 
 .detail-field-section {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid #e6edf4;
 }
 
-.detail-field-section h3 {
+.detail-field-section__head {
+  display: grid;
+  grid-template-columns: 18px 10px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  height: 34px;
   margin: 0 0 8px;
+  padding: 0;
+  color: #1f3852;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.detail-field-section__head svg {
+  color: #697d91;
+}
+
+.detail-field-section__head strong {
   color: #1f3852;
   font-size: 13px;
   font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-field-section__head em {
+  padding: 3px 9px;
+  color: #9a5a00;
+  background: #fff2cb;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.detail-section-dot {
+  width: 7px;
+  height: 7px;
+  background: #d94676;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(217, 70, 118, 0.1);
+}
+
+.detail-field-list {
+  display: grid;
+  gap: 0;
 }
 
 .detail-field {
   display: grid;
-  gap: 5px;
-  margin-bottom: 9px;
+  grid-template-columns: minmax(88px, 34%) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e6edf4;
 }
 
 .detail-field span {
@@ -2723,14 +2770,35 @@ td.status-오류 {
   font-weight: 900;
 }
 
+.detail-field input,
+.detail-field select,
 .detail-field textarea {
   width: 100%;
-  min-height: 54px;
-  max-height: 180px;
   color: #17202a;
   background: #ffffff;
 }
 
+.detail-field input,
+.detail-field select {
+  height: 38px;
+}
+
+.detail-field textarea {
+  min-height: 48px;
+  max-height: 170px;
+  resize: vertical;
+}
+
+.detail-field--textarea {
+  align-items: start;
+}
+
+.detail-field--textarea > span {
+  padding-top: 9px;
+}
+
+.detail-field.empty input,
+.detail-field.empty select,
 .detail-field.empty textarea {
   background: #fff8e9;
 }
@@ -2739,19 +2807,47 @@ td.status-오류 {
   color: #9a3412;
 }
 
+.detail-field.needs-region-review input,
+.detail-field.needs-region-review select,
 .detail-field.needs-region-review textarea {
   background: #fff1e8;
   border-color: #f0a36f;
   box-shadow: inset 3px 0 0 #f97316;
 }
 
-.detail-field.linked-field textarea {
+.detail-field.linked-field input,
+.detail-field.linked-field select,
+.detail-field.linked-field textarea,
+.detail-field.linked-field .detail-checkbox-control {
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
 }
 
 .detail-field.linked-field span {
   color: #1d4ed8;
+}
+
+.detail-checkbox-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  min-width: 110px;
+  height: 38px;
+  padding: 0 12px;
+  background: #ffffff;
+  border: 1px solid #cbd8e6;
+  border-radius: 4px;
+}
+
+.detail-checkbox-control input {
+  width: 16px;
+  height: 16px;
+}
+
+.detail-checkbox-control span {
+  color: #34475b;
+  font-weight: 800;
 }
 
 .detail-savebar {

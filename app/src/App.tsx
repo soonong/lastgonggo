@@ -235,6 +235,60 @@ function buildDisplayFormatMap(rules: StandardColumnRule[]) {
   return map
 }
 
+function parseOptionList(value: unknown) {
+  const raw = valueToText(value).trim()
+  if (!raw) return []
+  return Array.from(
+    new Set(
+      raw
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function buildColumnInputOptions(rules: StandardColumnRule[]) {
+  const map: Record<string, string[]> = {}
+  for (const rule of rules) {
+    const column = valueToText(rule.항목).trim()
+    if (!column) continue
+    const options = parseOptionList(rule.선택목록)
+    if (options.length) map[column] = options
+  }
+  return map
+}
+
+function firstKeywordFromRule(row: NoticeRow) {
+  const raw = valueToText(row['검색키워드'] ?? row.search_keywords ?? row.keyword ?? row.키워드).trim()
+  if (!raw) return ''
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return valueToText(parsed[0]).trim()
+  } catch (_) {
+    // plain text keywords are expected for editable settings rows.
+  }
+  return raw
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find(Boolean) ?? ''
+}
+
+function buildDetailFieldSourceMap(settingRows: Record<string, NoticeRow[]>) {
+  const map: Record<string, string> = {}
+  const sourceRows = [
+    ...(settingRows.newDocumentPickaxeRules ?? []),
+    ...(settingRows.parserRules ?? []),
+  ]
+  for (const row of sourceRows) {
+    const field = valueToText(row.항목 ?? row['대상컬럼'] ?? row.key).trim()
+    if (!field || map[field]) continue
+    const keyword = firstKeywordFromRule(row)
+    if (keyword) map[field] = keyword
+  }
+  return map
+}
+
 function parseDisplayNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   const text = valueToText(value).replace(/,/g, '').replace(/%/g, '').trim()
@@ -641,6 +695,8 @@ function App() {
 
   const columns = useMemo(() => getColumns(stageRows, profiles, rules), [stageRows, profiles, rules])
   const displayFormatMap = useMemo(() => buildDisplayFormatMap(rules), [rules])
+  const columnInputOptions = useMemo(() => buildColumnInputOptions(rules), [rules])
+  const fieldSourceMap = useMemo(() => buildDetailFieldSourceMap(settingRows), [settingRows])
   const finalGongoSet = useMemo(
     () => new Set(finalRows.map((row) => valueToText(row['공고번호'])).filter(Boolean)),
     [finalRows],
@@ -1466,6 +1522,8 @@ function App() {
           rows={filteredRows}
           columns={columns}
           displayFormatMap={displayFormatMap}
+          columnInputOptions={columnInputOptions}
+          fieldSourceMap={fieldSourceMap}
           onSave={saveDetailRow}
           onClose={() => setDetailRow(null)}
         />
@@ -4280,11 +4338,47 @@ type DetailSectionSpec = {
   fields: string[]
 }
 
+type DetailInputKind = 'text' | 'textarea' | 'select' | 'number' | 'money' | 'checkbox'
+type DetailFieldElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+
+const detailTextareaFields = new Set([
+  '참가자격',
+  '공고확인',
+  '특수실적',
+  '특수실적_공통',
+  '공고확인_내용',
+  '특수실적_내용',
+  '문서곡괭이근거',
+])
+
+const detailCheckboxFields = new Set([
+  '종목_모두보유',
+  '상호진출여부',
+  '동일실적_평가여부',
+  '실적경영평가안함',
+  '참가신청여부',
+  '자동수집여부',
+  '기초금액_발표전',
+  '입찰보증금_납부여부',
+  '내역입찰',
+])
+
+const detailSelectCandidateFields = new Set([
+  '공동도급형태',
+  '입찰방식',
+  '참여형태',
+  '계약체결방법',
+  '등급공사',
+  '난이도계수',
+  '적격발주처',
+  '원발주처',
+])
+
 const detailTabSections: Record<string, DetailSectionSpec[]> = {
   추가: [
     { title: '공사현장', fields: ['공사현장'] },
     { title: '협정 상세', fields: ['공동도급형태', '지역의무비율', '최소참여비율', '협정업체수', '추정금액', '대표사_최소비율'] },
-    { title: '특수조건', fields: ['특수조건0', '특수조건1', '특수조건2', '특수조건3', '특수실적', '공고확인', '참가자격'] },
+    { title: '특수조건', fields: ['특수조건0', '특수조건1', '특수조건2', '특수조건3', '특수실적', '특수실적_공통', '공고확인', '참가자격'] },
   ],
   종목: [
     { title: '종목 기본', fields: ['일반_기타_전문', '종목', '전문건설_주력분야', '단독평가종목', '종목_모두보유'] },
@@ -4321,6 +4415,8 @@ function NoticeDetailModal({
   rows,
   columns,
   displayFormatMap,
+  columnInputOptions,
+  fieldSourceMap,
   onSave,
   onClose,
 }: {
@@ -4328,6 +4424,8 @@ function NoticeDetailModal({
   rows: NoticeRow[]
   columns: string[]
   displayFormatMap: Record<string, string>
+  columnInputOptions: Record<string, string[]>
+  fieldSourceMap: Record<string, string>
   onSave: (row: NoticeRow) => void
   onClose: () => void
 }) {
@@ -4347,7 +4445,8 @@ function NoticeDetailModal({
   const [linkedField, setLinkedField] = useState<string | null>(null)
   const [linkedColumn, setLinkedColumn] = useState<string | null>(null)
   const topCellRefs = useRef<Record<string, HTMLTableCellElement | null>>({})
-  const fieldRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const fieldRefs = useRef<Record<string, DetailFieldElement | null>>({})
+  const [collapsedDetailSections, setCollapsedDetailSections] = useState<Record<string, boolean>>({})
   const tabs = ['추가', '종목', '기본', '기타', '첨부파일', '적격심사기준']
   const detailKey = valueToText(draftRow['적격평가기준_세부'])
   const constructionType = valueToText(draftRow['일반_기타_전문']) || '일반건설'
@@ -4359,6 +4458,7 @@ function NoticeDetailModal({
   const highlightQuery = docSearch.trim() || activeHighlight.trim()
   const highlightCount = highlightQuery ? countMatches(searchableDocText, highlightQuery) : 0
   const currentSearchIndex = docSearch.trim() && highlightCount ? (searchIndex % highlightCount) + 1 : 0
+  const activeDocHighlightIndex = docSearch.trim() ? searchIndex : activeHighlight.trim() ? 0 : -1
 
   useEffect(() => {
     setDraftRow(row)
@@ -4439,6 +4539,44 @@ function NoticeDetailModal({
 
   function changeDraftField(field: string, value: string) {
     setDraftRow((prev) => ({ ...prev, [field]: value }))
+  }
+
+  function detailInputKind(field: string): DetailInputKind {
+    const format = valueToText(displayFormatMap[field]).trim()
+    if (detailTextareaFields.has(field)) return 'textarea'
+    if (detailCheckboxFields.has(field)) return 'checkbox'
+    if (optionsForDetailField(field).length) return 'select'
+    if (format.includes('%')) return 'number'
+    if (/^[#,\.0]+$/.test(format) || /금액|가격|원가|A값|보험료|부가가치세|수수료|시평액|만점실적/.test(field)) return 'money'
+    if (/비율|계수|업체수|열번호|점수|기간/.test(field)) return 'number'
+    return 'text'
+  }
+
+  function detailInputValue(field: string, kind: DetailInputKind) {
+    const raw = valueToText(draftRow[field])
+    if (kind === 'money' && raw.trim()) return formatCellForDisplay(raw, displayFormatMap[field])
+    if (kind === 'number' && displayFormatMap[field]?.includes('%') && raw.trim()) return formatCellForDisplay(raw, displayFormatMap[field])
+    return raw
+  }
+
+  function normalizeDetailInput(field: string, kind: DetailInputKind, value: string) {
+    if (kind === 'money') return value.replace(/,/g, '')
+    if (kind === 'number' && displayFormatMap[field]?.includes('%')) return value.replace(/,/g, '').replace(/%/g, '')
+    return value
+  }
+
+  function detailFieldSource(field: string) {
+    return fieldSourceMap[field] || field
+  }
+
+  function focusDetailField(field: string) {
+    jumpToTopColumn(field)
+    setActiveLeftTab('공고문')
+    setActiveHighlight(detailFieldSource(field))
+  }
+
+  function toggleDetailSection(sectionKey: string) {
+    setCollapsedDetailSections((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }))
   }
 
   function clearSearch() {
@@ -4553,6 +4691,29 @@ function NoticeDetailModal({
       })
     return ordered
   }, [draftRow, rows])
+  const rowValueOptions = useMemo(() => {
+    const fieldSet = new Set<string>()
+    Object.values(detailTabSections).forEach((sections) => {
+      sections.forEach((section) => section.fields.forEach((field) => fieldSet.add(field)))
+    })
+    const map: Record<string, string[]> = {}
+    for (const field of fieldSet) {
+      if (!detailSelectCandidateFields.has(field)) continue
+      const values = Array.from(
+        new Set(
+          detailRows
+            .map((item) => valueToText(item[field]).trim())
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b, 'ko'))
+      if (values.length) map[field] = values.slice(0, 80)
+    }
+    return map
+  }, [detailRows])
+
+  function optionsForDetailField(field: string) {
+    return columnInputOptions[field]?.length ? columnInputOptions[field] : rowValueOptions[field] ?? []
+  }
 
   return (
     <div className="detail-modal" role="dialog" aria-modal="true" aria-label="공고 상세">
@@ -4662,9 +4823,9 @@ function NoticeDetailModal({
             {activeLeftTab !== '공고문' ? (
               <FilePreviewTab file={fileTabs.find((file) => file.name === activeLeftTab)} />
             ) : htmlDoc ? (
-              <HighlightedHtmlDocument html={htmlDoc} query={highlightQuery} activeIndex={docSearch.trim() ? searchIndex : -1} />
+              <HighlightedHtmlDocument html={htmlDoc} query={highlightQuery} activeIndex={activeDocHighlightIndex} />
             ) : highlightQuery ? (
-              <HighlightedDocument text={docText} query={highlightQuery} activeIndex={docSearch.trim() ? searchIndex : -1} />
+              <HighlightedDocument text={docText} query={highlightQuery} activeIndex={activeDocHighlightIndex} />
             ) : (
               <>
                 <div className="doc-placeholder">
@@ -4725,25 +4886,89 @@ function NoticeDetailModal({
               />
             ) : visibleSections.map((section) => (
               <section key={section.title} className="detail-field-section">
-                <h3>{section.title}</h3>
-                {section.fields.map((field) => (
-                  <label key={field} className={detailFieldClass(draftRow, field, regionIssues, linkedField)}>
-                    <span>{field}</span>
-                    <textarea
-                      ref={(element) => {
-                        fieldRefs.current[field] = element
-                      }}
-                      value={valueToText(draftRow[field])}
-                      placeholder={formatCellForDisplay(draftRow[field], displayFormatMap[field])}
-                      onChange={(event) => changeDraftField(field, event.target.value)}
-                      onFocus={() => {
-                        jumpToTopColumn(field)
-                        setActiveLeftTab('공고문')
-                        setActiveHighlight(valueToText(draftRow[field]) || field)
-                      }}
-                    />
-                  </label>
-                ))}
+                {(() => {
+                  const sectionKey = `${activeTab}:${section.title}`
+                  const collapsed = Boolean(collapsedDetailSections[sectionKey])
+                  const emptyCount = section.fields.filter((field) => valueToText(draftRow[field]).trim() === '').length
+                  return (
+                    <>
+                      <button
+                        className="detail-field-section__head"
+                        type="button"
+                        onClick={() => toggleDetailSection(sectionKey)}
+                        aria-expanded={!collapsed}
+                      >
+                        {collapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+                        <span className="detail-section-dot" aria-hidden="true" />
+                        <strong>{section.title}</strong>
+                        {emptyCount ? <em>빈칸 {emptyCount.toLocaleString()}</em> : null}
+                      </button>
+                      {!collapsed ? (
+                        <div className="detail-field-list">
+                          {section.fields.map((field) => {
+                            const kind = detailInputKind(field)
+                            const options = optionsForDetailField(field)
+                            const currentValue = valueToText(draftRow[field])
+                            const selectOptions = currentValue && !options.includes(currentValue) ? [currentValue, ...options] : options
+                            const commonProps = {
+                              ref: (element: DetailFieldElement | null) => {
+                                fieldRefs.current[field] = element
+                              },
+                              value: detailInputValue(field, kind),
+                              onFocus: () => focusDetailField(field),
+                            }
+                            return (
+                              <label key={field} className={detailFieldClass(draftRow, field, regionIssues, linkedField, kind)}>
+                                <span>{field}</span>
+                                {kind === 'select' ? (
+                                  <select
+                                    {...commonProps}
+                                    onChange={(event) => changeDraftField(field, event.target.value)}
+                                  >
+                                    <option value="">미입력</option>
+                                    {selectOptions.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : kind === 'checkbox' ? (
+                                  <label className="detail-checkbox-control">
+                                    <input
+                                      ref={(element) => {
+                                        fieldRefs.current[field] = element
+                                      }}
+                                      type="checkbox"
+                                      checked={isCheckedValue(draftRow[field])}
+                                      onFocus={() => focusDetailField(field)}
+                                      onChange={(event) => changeDraftField(field, event.target.checked ? '1' : '')}
+                                    />
+                                    <span>{isCheckedValue(draftRow[field]) ? '1' : '빈값'}</span>
+                                  </label>
+                                ) : kind === 'textarea' ? (
+                                  <textarea
+                                    {...commonProps}
+                                    placeholder={field}
+                                    onChange={(event) => changeDraftField(field, event.target.value)}
+                                    rows={field === '참가자격' ? 4 : 3}
+                                  />
+                                ) : (
+                                  <input
+                                    {...commonProps}
+                                    type="text"
+                                    inputMode={kind === 'money' || kind === 'number' ? 'decimal' : undefined}
+                                    placeholder={formatCellForDisplay(draftRow[field], displayFormatMap[field]) || field}
+                                    onChange={(event) => changeDraftField(field, normalizeDetailInput(field, kind, event.target.value))}
+                                  />
+                                )}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </>
+                  )
+                })()}
               </section>
             ))}
             {activeTab === '적격심사기준' ? (
@@ -4785,8 +5010,8 @@ function getRegionIssues(row: NoticeRow) {
     .filter((item) => item.status.includes('확인필요') || item.status.includes('후보') || (!item.value && item.field !== '검색용현장'))
 }
 
-function detailFieldClass(row: NoticeRow, field: string, regionIssues: Array<{ field: string }>, linkedField?: string | null) {
-  const classes = ['detail-field']
+function detailFieldClass(row: NoticeRow, field: string, regionIssues: Array<{ field: string }>, linkedField?: string | null, kind: DetailInputKind = 'text') {
+  const classes = ['detail-field', `detail-field--${kind}`]
   if (valueToText(row[field]).trim() === '') classes.push('empty')
   if (regionIssues.some((issue) => issue.field === field)) classes.push('needs-region-review')
   if (linkedField === field) classes.push('linked-field')
