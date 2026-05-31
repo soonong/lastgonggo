@@ -53,17 +53,64 @@ export type PreprocessSettings = {
   bidMethodSkip?: NoticeRow[]
   deleteKeywords?: NoticeRow[]
   bracketRules?: NoticeRow[]
-  skipSpecialConditionRouter?: boolean
   skipSiteRegionNormalization?: boolean
 }
 
-export function preprocessRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings = {}): PipelineResult {
+type RowPipelineOptions = {
+  deleteRows?: boolean
+  routeSpecialCondition?: boolean
+  normalizeRegion?: boolean
+  normalizeSiteRegion?: boolean
+  runBasicCalculations?: boolean
+  applyDefaults?: boolean
+  runPrimaryEvaluation?: boolean
+  runSecondaryEvaluation?: boolean
+  runValidation?: boolean
+}
+
+export function preprocessBeforeNarashiRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings = {}): PipelineResult {
+  return runRows(rows, rules, settings, {
+    deleteRows: true,
+    applyDefaults: true,
+  })
+}
+
+export function preprocessAfterDocumentRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings = {}): PipelineResult {
+  return runRows(rows, rules, settings, {
+    routeSpecialCondition: true,
+    normalizeRegion: true,
+    normalizeSiteRegion: false,
+    runPrimaryEvaluation: true,
+    runBasicCalculations: true,
+    applyDefaults: true,
+    runSecondaryEvaluation: true,
+    runValidation: true,
+  })
+}
+
+export function reprocessHumanRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings = {}): PipelineResult {
+  return runRows(rows, rules, settings, {
+    routeSpecialCondition: true,
+    normalizeRegion: true,
+    normalizeSiteRegion: true,
+    runBasicCalculations: true,
+    applyDefaults: true,
+    runSecondaryEvaluation: true,
+    runValidation: true,
+  })
+}
+
+export function reprocessHumanRow(row: NoticeRow, rules: StandardColumnRule[], settings: PreprocessSettings = {}) {
+  return reprocessHumanRows([row], rules, settings).rows[0] ?? row
+}
+
+function runRows(rows: NoticeRow[], rules: StandardColumnRule[], settings: PreprocessSettings, options: RowPipelineOptions): PipelineResult {
   let changed = 0
   let review = 0
   let errors = 0
   const processed: NoticeRow[] = []
   for (const row of rows) {
-    const deleteHit = matchDeleteKeyword(row, settings)
+    const deleteHit = options.deleteRows ? matchDeleteKeyword(row, settings) : null
     if (deleteHit) {
       changed += 1
       continue
@@ -73,12 +120,13 @@ export function preprocessRows(rows: NoticeRow[], rules: StandardColumnRule[], s
 
     normalizeRaw(next)
     applyBracketRules(next, settings)
-    if (!settings.skipSpecialConditionRouter) applySpecialConditionRouter(next, settings)
-    applyRegionNormalization(next, settings)
-    applyBasicCalculations(next, settings)
-    applyColumnDefaults(next, rules)
-    applyEvaluationDebug(next, settings)
-    validateRow(next, settings)
+    if (options.routeSpecialCondition) applySpecialConditionRouter(next, settings)
+    if (options.normalizeRegion) applyRegionNormalization(next, { ...settings, skipSiteRegionNormalization: !options.normalizeSiteRegion })
+    if (options.runPrimaryEvaluation) applyEvaluationPrimary(next, settings)
+    if (options.runBasicCalculations) applyBasicCalculations(next, settings)
+    if (options.applyDefaults) applyColumnDefaults(next, rules)
+    if (options.runSecondaryEvaluation) applyEvaluationSecondary(next, settings)
+    if (options.runValidation) validateRow(next, settings)
 
     const status = String(next['검증상태'] ?? '')
     if (status.includes('확인')) review += 1
@@ -87,10 +135,6 @@ export function preprocessRows(rows: NoticeRow[], rules: StandardColumnRule[], s
     processed.push(next)
   }
   return { rows: processed, stats: { total: rows.length, changed, review, errors } }
-}
-
-export function reprocessHumanRow(row: NoticeRow, rules: StandardColumnRule[], settings: PreprocessSettings = {}) {
-  return preprocessRows([row], rules, settings).rows[0] ?? row
 }
 
 function projectStable(row: NoticeRow) {
@@ -357,7 +401,7 @@ function applyColumnDefaults(row: NoticeRow, rules: StandardColumnRule[]) {
   }
 }
 
-function applyEvaluationDebug(row: NoticeRow, settings: PreprocessSettings) {
+function applyEvaluationPrimary(row: NoticeRow, settings: PreprocessSettings) {
   const bidMethod = text(row['입찰방식'])
   const skip = isSkipBidMethod(bidMethod, settings.bidMethodSkip ?? [])
   if (skip) {
@@ -386,7 +430,9 @@ function applyEvaluationDebug(row: NoticeRow, settings: PreprocessSettings) {
     row['적격_1차사유'] = ''
     row['적격_처치방법'] = ''
   }
+}
 
+function applyEvaluationSecondary(row: NoticeRow, settings: PreprocessSettings) {
   const secondary = applySecondaryCriteria(row, settings)
   if (secondary) {
     row['적격_2차상태'] = 'OK'

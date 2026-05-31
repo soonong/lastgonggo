@@ -42,7 +42,14 @@ import {
   saveSettingsRows,
   saveStandardColumnRules,
 } from './api'
-import { preprocessRows, reprocessHumanRow, type PipelineStats, type PreprocessSettings } from './pipeline'
+import {
+  preprocessAfterDocumentRows,
+  preprocessBeforeNarashiRows,
+  reprocessHumanRow,
+  reprocessHumanRows,
+  type PipelineStats,
+  type PreprocessSettings,
+} from './pipeline'
 import type { NoticeRow, ParserNormalizationResult, ParserResult, ServerColumnProfile, StandardColumnRule } from './types'
 
 type Stage = 'flow' | 'collect' | 'preprocess' | 'human' | 'output' | 'rules'
@@ -779,11 +786,7 @@ function App() {
           current: `곡괭이전나라시 ${start + 1}-${end}`,
         })
 
-        const result = preprocessRows(chunk, rules, {
-          ...preprocessSettings,
-          skipSpecialConditionRouter: true,
-          skipSiteRegionNormalization: true,
-        })
+        const result = preprocessBeforeNarashiRows(chunk, rules, preprocessSettings)
         processedRows.push(...result.rows)
         stats.total += result.stats.total
         stats.changed += result.stats.changed
@@ -893,7 +896,7 @@ function App() {
     }
 
     setParserCache(nextParserCache)
-    const result = preprocessRows(mergedRows, rules, preprocessSettings)
+    const result = preprocessAfterDocumentRows(mergedRows, rules, preprocessSettings)
     setPreRows(result.rows)
     setHumanRows(result.rows)
     setFinalRows([])
@@ -934,7 +937,7 @@ function App() {
       setStatus('2차분류로 보낼 공고를 체크하세요.')
       return
     }
-    const result = preprocessRows(targetRows, rules, preprocessSettings)
+    const result = reprocessHumanRows(targetRows, rules, preprocessSettings)
     const movedRows: NoticeRow[] = result.rows.map((row) => ({ ...row, '2차분류이관': '1', '2차분류_종목': jongmokFilter || '전체' }))
     const movedGongoSet = new Set(movedRows.map((row) => valueToText(row['공고번호'])).filter(Boolean))
     const keptFinalRows = finalRows.filter((row) => !movedGongoSet.has(valueToText(row['공고번호'])))
