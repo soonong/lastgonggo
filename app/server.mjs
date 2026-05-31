@@ -935,6 +935,7 @@ function decodeHtmlEntities(text) {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
 }
 
@@ -981,8 +982,19 @@ function classifyBlock(text, numbering) {
   if (String(text).includes('|')) return '표후보'
   if (numbering) return '번호문단'
   if (/^(붙임|첨부|별첨|별표|서식)\b/.test(text)) return '첨부/붙임'
-  if (text.length <= 30 && /[:：]$/.test(text)) return '제목'
+  if (isLikelySectionHeading(text)) return '제목'
   return '문단'
+}
+
+function isLikelySectionHeading(text) {
+  const value = String(text || '').trim()
+  if (!value || value.length > 45) return false
+  if (/[:：]$/.test(value)) return true
+  if (/[.!?。]$/.test(value) || value.endsWith('다')) return false
+  if (/[|]/.test(value)) return false
+  if (/\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/.test(value)) return false
+  if (/[\d,]{6,}\s*원?/.test(value)) return false
+  return /(입찰에 부치는 사항|견적에 부치는 사항|공사개요|공사내용|입찰참가자격|참가자격|입찰자격|공동계약|공동도급|입찰일정|입찰서 제출|개찰|낙찰자 결정|계약상대자 결정|계약방식|지역제한|현장설명|문의처|연락처|입찰보증금|입찰무효|하도급|안전보건|기타사항|유의사항|관련규정)/.test(value)
 }
 
 function buildSections(blocks) {
@@ -1092,18 +1104,21 @@ function detectTables(lines) {
   const tables = []
   let current = []
   const flush = () => {
-    if (current.length >= 2) {
+    if (current.length >= 1) {
       const rows = current.map((line) => line.split('|').map((cell) => cell.trim()).filter(Boolean))
       const widths = rows.map((row) => row.length)
-      tables.push({
-        순번: tables.length + 1,
-        유형: Math.max(...widths) >= 3 ? '가로형/복합형 후보' : '세로형 후보',
-        행수: rows.length,
-        열수: Math.max(...widths),
-        헤더: rows[0]?.join(' / ') ?? '',
-        첫값행: rows[1]?.join(' / ') ?? '',
-        경고: new Set(widths).size > 1 ? '행별 열 수 다름' : '',
-      })
+      const maxWidth = Math.max(...widths)
+      if (maxWidth >= 2) {
+        tables.push({
+          순번: tables.length + 1,
+          유형: current.length === 1 ? '단일행 표 후보' : maxWidth >= 3 ? '가로형/복합형 후보' : '세로형 후보',
+          행수: rows.length,
+          열수: maxWidth,
+          헤더: rows[0]?.join(' / ') ?? '',
+          첫값행: rows[1]?.join(' / ') ?? '',
+          경고: new Set(widths).size > 1 ? '행별 열 수 다름' : '',
+        })
+      }
     }
     current = []
   }
