@@ -4343,6 +4343,11 @@ function NoticeDetailModal({
   const [fileTabs, setFileTabs] = useState<Array<{ name: string; url: string; ext: string }>>([])
   const [qualificationRows, setQualificationRows] = useState<NoticeRow[]>([])
   const [qualificationStatus, setQualificationStatus] = useState('')
+  const [pendingRightField, setPendingRightField] = useState<string | null>(null)
+  const [linkedField, setLinkedField] = useState<string | null>(null)
+  const [linkedColumn, setLinkedColumn] = useState<string | null>(null)
+  const topCellRefs = useRef<Record<string, HTMLTableCellElement | null>>({})
+  const fieldRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const tabs = ['추가', '종목', '기본', '기타', '첨부파일', '적격심사기준']
   const detailKey = valueToText(draftRow['적격평가기준_세부'])
   const constructionType = valueToText(draftRow['일반_기타_전문']) || '일반건설'
@@ -4358,6 +4363,79 @@ function NoticeDetailModal({
   useEffect(() => {
     setDraftRow(row)
   }, [row])
+
+  const detailColumnWidths = useMemo(() => {
+    const merged: Record<string, number> = {}
+    for (const key of ['main:collect', 'main:preprocess', 'main:human']) {
+      Object.assign(merged, loadColumnWidthCache(`lastgonggo.columnWidths.${key}`))
+    }
+    return merged
+  }, [columns])
+
+  function detailColumnWidth(col: string) {
+    return detailColumnWidths[col] ?? defaultColumnWidth(col)
+  }
+
+  const detailTableWidth = useMemo(
+    () => columns.reduce((sum, col) => sum + detailColumnWidth(col), 0),
+    [columns, detailColumnWidths],
+  )
+
+  const fieldToTab = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const tabName of tabs) {
+      for (const section of detailTabSections[tabName] ?? []) {
+        for (const field of section.fields) {
+          if (!map.has(field)) map.set(field, tabName)
+        }
+      }
+    }
+    return map
+  }, [tabs])
+
+  function scrollTopStripToColumn(field: string) {
+    const cell = topCellRefs.current[field]
+    if (!cell) return
+    setLinkedColumn(field)
+    cell.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+  }
+
+  function jumpToRightField(field: string) {
+    const targetTab = fieldToTab.get(field)
+    if (!targetTab) return
+    setLinkedField(field)
+    setLinkedColumn(field)
+    setPendingRightField(field)
+    setActiveTab(targetTab)
+    scrollTopStripToColumn(field)
+  }
+
+  function jumpToTopColumn(field: string) {
+    setLinkedField(field)
+    scrollTopStripToColumn(field)
+  }
+
+  useEffect(() => {
+    if (!pendingRightField) return
+    const timer = window.setTimeout(() => {
+      const target = fieldRefs.current[pendingRightField]
+      if (target) {
+        target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+        target.focus()
+      }
+      setPendingRightField(null)
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [activeTab, pendingRightField])
+
+  useEffect(() => {
+    if (!linkedField && !linkedColumn) return
+    const timer = window.setTimeout(() => {
+      setLinkedField(null)
+      setLinkedColumn(null)
+    }, 1800)
+    return () => window.clearTimeout(timer)
+  }, [linkedField, linkedColumn])
 
   function changeDraftField(field: string, value: string) {
     setDraftRow((prev) => ({ ...prev, [field]: value }))
@@ -4490,16 +4568,22 @@ function NoticeDetailModal({
             </span>
           </div>
           <div className="detail-row-table-wrap">
-            <table className="detail-row-table">
+            <table className="detail-row-table" style={{ width: detailTableWidth, minWidth: detailTableWidth }}>
               <colgroup>
                 {columns.map((col) => (
-                  <col key={col} style={{ width: defaultColumnWidth(col) }} />
+                  <col key={col} style={{ width: detailColumnWidth(col) }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
                   {columns.map((col) => (
-                    <th key={col}>{col}</th>
+                    <th
+                      key={col}
+                      className={linkedColumn === col ? 'linked-column' : ''}
+                      style={{ width: detailColumnWidth(col), minWidth: detailColumnWidth(col), maxWidth: detailColumnWidth(col) }}
+                    >
+                      {col}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -4513,7 +4597,20 @@ function NoticeDetailModal({
                       onClick={() => setDraftRow(item)}
                     >
                       {columns.map((col) => (
-                        <td key={col} title={valueToText(item[col])}>
+                        <td
+                          key={col}
+                          ref={(element) => {
+                            if (index === 0) topCellRefs.current[col] = element
+                          }}
+                          className={linkedColumn === col ? 'linked-column' : ''}
+                          style={{ width: detailColumnWidth(col), minWidth: detailColumnWidth(col), maxWidth: detailColumnWidth(col) }}
+                          title={valueToText(item[col])}
+                          onDoubleClick={(event) => {
+                            event.stopPropagation()
+                            setDraftRow(item)
+                            jumpToRightField(col)
+                          }}
+                        >
                           <span>{formatCellForDisplay(item[col], displayFormatMap[col])}</span>
                         </td>
                       ))}
@@ -4630,13 +4727,17 @@ function NoticeDetailModal({
               <section key={section.title} className="detail-field-section">
                 <h3>{section.title}</h3>
                 {section.fields.map((field) => (
-                  <label key={field} className={detailFieldClass(draftRow, field, regionIssues)}>
+                  <label key={field} className={detailFieldClass(draftRow, field, regionIssues, linkedField)}>
                     <span>{field}</span>
                     <textarea
+                      ref={(element) => {
+                        fieldRefs.current[field] = element
+                      }}
                       value={valueToText(draftRow[field])}
                       placeholder={formatCellForDisplay(draftRow[field], displayFormatMap[field])}
                       onChange={(event) => changeDraftField(field, event.target.value)}
                       onFocus={() => {
+                        jumpToTopColumn(field)
                         setActiveLeftTab('공고문')
                         setActiveHighlight(valueToText(draftRow[field]) || field)
                       }}
@@ -4684,10 +4785,11 @@ function getRegionIssues(row: NoticeRow) {
     .filter((item) => item.status.includes('확인필요') || item.status.includes('후보') || (!item.value && item.field !== '검색용현장'))
 }
 
-function detailFieldClass(row: NoticeRow, field: string, regionIssues: Array<{ field: string }>) {
+function detailFieldClass(row: NoticeRow, field: string, regionIssues: Array<{ field: string }>, linkedField?: string | null) {
   const classes = ['detail-field']
   if (valueToText(row[field]).trim() === '') classes.push('empty')
   if (regionIssues.some((issue) => issue.field === field)) classes.push('needs-region-review')
+  if (linkedField === field) classes.push('linked-field')
   return classes.join(' ')
 }
 

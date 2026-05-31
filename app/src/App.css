@@ -2379,7 +2379,6 @@ td.status-오류 {
 
 .detail-row-table {
   width: max-content;
-  min-width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -2393,6 +2392,12 @@ td.status-오류 {
   border-bottom: 1px solid #e2e9f1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-row-table th.linked-column,
+.detail-row-table td.linked-column {
+  background: #dbeafe;
+  box-shadow: inset 0 0 0 2px #3b82f6;
 }
 
 .detail-row-table th {
@@ -2738,6 +2743,15 @@ td.status-오류 {
   background: #fff1e8;
   border-color: #f0a36f;
   box-shadow: inset 3px 0 0 #f97316;
+}
+
+.detail-field.linked-field textarea {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+
+.detail-field.linked-field span {
+  color: #1d4ed8;
 }
 
 .detail-savebar {
