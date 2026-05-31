@@ -1105,18 +1105,16 @@ function detectTables(lines) {
   let current = []
   const flush = () => {
     if (current.length >= 1) {
-      const rows = current.map((line) => line.split('|').map((cell) => cell.trim()).filter(Boolean))
-      const widths = rows.map((row) => row.length)
-      const maxWidth = Math.max(...widths)
-      if (maxWidth >= 2) {
+      const analysis = analyzeTableRows(current)
+      if (analysis.maxWidth >= 2) {
         tables.push({
           순번: tables.length + 1,
-          유형: current.length === 1 ? '단일행 표 후보' : maxWidth >= 3 ? '가로형/복합형 후보' : '세로형 후보',
-          행수: rows.length,
-          열수: maxWidth,
-          헤더: rows[0]?.join(' / ') ?? '',
-          첫값행: rows[1]?.join(' / ') ?? '',
-          경고: new Set(widths).size > 1 ? '행별 열 수 다름' : '',
+          유형: analysis.kind,
+          행수: analysis.rowCount,
+          열수: analysis.maxWidth,
+          헤더: analysis.rows[0]?.join(' / ') ?? '',
+          첫값행: analysis.rows[1]?.join(' / ') ?? '',
+          경고: analysis.warning,
         })
       }
     }
@@ -1128,6 +1126,71 @@ function detectTables(lines) {
   }
   flush()
   return tables
+}
+
+function analyzeTableRows(lines) {
+  const rows = tableRowsFromLines(lines)
+  const widths = rows.map((row) => row.length)
+  const maxWidth = widths.length ? Math.max(...widths) : 0
+  const rowCount = rows.length
+  const widthSet = new Set(widths)
+  const ragged = widthSet.size > 1
+  let kind = '똥표'
+  const warnings = []
+
+  if (!rowCount || maxWidth < 2) {
+    warnings.push('셀 2개 미만')
+  } else if (rowCount === 1) {
+    kind = '단일행 표'
+  } else if (!ragged && maxWidth === 2) {
+    kind = '세로표'
+  } else if (!ragged && looksLikeHorizontalTable(rows)) {
+    kind = '가로표'
+  } else if (ragged || looksLikeComplexTable(rows)) {
+    kind = '복합표'
+  } else {
+    kind = '가로표'
+  }
+
+  if (ragged) warnings.push('행별 열 수 다름')
+  if (kind === '복합표') warnings.push('복합 구조: 확정 추출 제한')
+  if (kind === '똥표') warnings.push('깨진 표: 자동 확정 금지')
+
+  return {
+    rows,
+    widths,
+    maxWidth,
+    rowCount,
+    kind,
+    warning: Array.from(new Set(warnings)).join(' / '),
+  }
+}
+
+function tableRowsFromLines(lines) {
+  return lines
+    .map((line) => String(line || '').split('|').map((cell) => cell.trim()).filter(Boolean))
+    .filter((row) => row.length)
+}
+
+function looksLikeHorizontalTable(rows) {
+  if (rows.length < 2) return false
+  const first = rows[0] || []
+  const second = rows[1] || []
+  const firstMoney = first.filter(isMoneyLikeCell).length
+  const secondMoney = second.filter(isMoneyLikeCell).length
+  if (firstMoney === 0 && secondMoney > 0) return true
+  if (/^(항목|구분|공종|비목)$/i.test(first[0] || '') && first.slice(1).some(Boolean)) return true
+  return false
+}
+
+function looksLikeComplexTable(rows) {
+  if (rows.length < 2) return false
+  const firstColumn = rows.map((row) => row[0] || '').filter(Boolean)
+  return firstColumn.some((cell) => /합\s*계|공사비|추정가격|기초금액|순공사원가/.test(cell)) && rows.some((row) => row.length >= 3)
+}
+
+function isMoneyLikeCell(value) {
+  return /[\d,]{6,}\s*원?/.test(String(value || ''))
 }
 
 function readParserRuleRows() {
@@ -1205,27 +1268,49 @@ function normalizeNoticeHtml(html) {
 function buildParserParagraphBlocks(blocks) {
   const result = []
   let current = ''
-  let currentHasTable = false
+  let tableLines = []
+  const flushParagraph = () => {
+    if (!current) return
+    result.push({ text: current, hasTable: false })
+    current = ''
+  }
+  const flushTable = () => {
+    if (!tableLines.length) return
+    const analysis = analyzeTableRows(tableLines)
+    result.push({
+      text: tableLines.join('\n'),
+      hasTable: true,
+      tableRows: analysis.rows,
+      tableKind: analysis.kind,
+      tableWarning: analysis.warning,
+    })
+    tableLines = []
+  }
   for (const block of blocks || []) {
     const text = String(block?.원문 || '').trim()
     if (!text) continue
     if (/^\|+$/.test(text)) continue
     const startsParagraph = Boolean(block?.번호) || block?.유형 === '제목'
     const hasTable = block?.유형 === '표후보' || text.includes('|') || isTableLikeBlock(text)
+    if (hasTable) {
+      flushParagraph()
+      tableLines.push(text)
+      continue
+    }
+    flushTable()
     if (startsParagraph) {
-      if (current) result.push({ text: current, hasTable: currentHasTable })
+      flushParagraph()
       current = text
-      currentHasTable = hasTable
       continue
     }
     if (current) {
       current = `${current} ${text}`.replace(/\s+/g, ' ').trim()
-      currentHasTable = currentHasTable || hasTable
     } else {
-      result.push({ text, hasTable })
+      result.push({ text, hasTable: false })
     }
   }
-  if (current) result.push({ text: current, hasTable: currentHasTable })
+  flushParagraph()
+  flushTable()
   return result
 }
 
@@ -1311,7 +1396,7 @@ function extractByParserRule(text, blocks, rule, type) {
 
   const fixedValue = fixedValueForRule(rule, hit.matchedKeyword)
   if (type === '6_1') {
-    const value = extractTableValue(hit.sourceText)
+    const value = extractTableValue(hit.sourceText, hit.matchedKeyword, hit)
     return value ? { value, matchedKeyword: hit.matchedKeyword, sourceText: hit.sourceText } : null
   }
   if (type === '3_1') {
@@ -1348,7 +1433,68 @@ function extractByParserRule(text, blocks, rule, type) {
   return null
 }
 
-function extractTableValue(sourceText) {
+function extractTableValue(sourceText, keyword, hit = {}) {
+  const rows = Array.isArray(hit.tableRows) && hit.tableRows.length
+    ? hit.tableRows
+    : tableRowsFromLines(String(sourceText || '').split(/\r?\n/))
+  const analysis = rows.length ? analyzeTableRows(rows.map((row) => row.join(' | '))) : analyzeTableRows([String(sourceText || '')])
+  const kind = hit.tableKind || analysis.kind
+  if (kind === '똥표') return ''
+
+  const label = String(keyword || '').trim()
+  const normalizedLabel = normalizeTableCell(label)
+  if (!normalizedLabel) return fallbackTableMoney(sourceText)
+
+  const exactCell = (cell) => normalizeTableCell(cell) === normalizedLabel
+  const includesCell = (cell) => normalizeTableCell(cell).includes(normalizedLabel)
+
+  if (kind === '세로표' || kind === '단일행 표') {
+    for (const row of rows) {
+      const labelIndex = row.findIndex((cell) => exactCell(cell) || includesCell(cell))
+      if (labelIndex < 0) continue
+      const value = firstMoneyInCells(row.slice(labelIndex + 1))
+      if (value) return value
+    }
+  }
+
+  if (kind === '가로표' || kind === '복합표') {
+    const headerRowIndex = rows.findIndex((row) => row.some((cell) => exactCell(cell) || includesCell(cell)))
+    if (headerRowIndex >= 0) {
+      const headerRow = rows[headerRowIndex]
+      const colIndex = headerRow.findIndex((cell) => exactCell(cell) || includesCell(cell))
+      for (const row of rows.slice(headerRowIndex + 1)) {
+        const value = firstMoneyInCells([row[colIndex]])
+        if (value) return value
+      }
+      const sameRowValue = firstMoneyInCells(headerRow.slice(colIndex + 1))
+      if (sameRowValue) return sameRowValue
+    }
+
+    for (const row of rows) {
+      const labelIndex = row.findIndex((cell) => exactCell(cell) || includesCell(cell))
+      if (labelIndex < 0) continue
+      const value = firstMoneyInCells(row.slice(labelIndex + 1))
+      if (value) return value
+    }
+  }
+
+  if (kind === '복합표') return ''
+  return fallbackTableMoney(sourceText)
+}
+
+function normalizeTableCell(value) {
+  return String(value || '').replace(/\s+/g, '').replace(/[():：\-]/g, '').trim()
+}
+
+function firstMoneyInCells(cells) {
+  for (const cell of cells) {
+    const money = String(cell || '').match(/([\d,]{6,})\s*원?/)
+    if (money) return money[1].replace(/,/g, '')
+  }
+  return ''
+}
+
+function fallbackTableMoney(sourceText) {
   const text = String(sourceText || '')
   const moneyValues = [...text.matchAll(/([\d,]{6,})\s*원?/g)].map((match) => match[1].replace(/,/g, ''))
   if (!moneyValues.length) return ''
@@ -1485,6 +1631,9 @@ function findKeywordHit(text, blocks, keyword, gap = 15, type = '') {
         matchedText: match[0],
         aliasLabel: '',
         hasTable: Boolean(block?.hasTable),
+        tableRows: block?.tableRows || [],
+        tableKind: block?.tableKind || '',
+        tableWarning: block?.tableWarning || '',
       }
     }
   }
