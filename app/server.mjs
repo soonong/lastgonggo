@@ -982,11 +982,13 @@ function isLikelyBlockHeading(text) {
 }
 
 function isHardStart(line) {
-  return /^(\d+[\).\-\s]|[가-힣]\.|[가-힣]\)|[①-⑳]|[㉠-㉭]|제\s*\d+\s*조|\[[^\]]+\])/.test(line)
+  return Boolean(detectNumbering(line)) || /^\[[^\]]+\]/.test(line)
 }
 
 function detectNumbering(text) {
-  const match = String(text || '').match(/^((?:\d+(?:[.)-]|\s+))|(?:[가-힣][.)])|(?:[①-⑳])|(?:[㉠-㉭])|(?:제\s*\d+\s*조))\s*(.*)$/)
+  const match = String(text || '').match(
+    /^((?:제\s*\d+\s*조)|(?:\d+(?:[.-]\d+)+(?:[-.)]?[가-힣])?[.)]?)|(?:\d+(?:[.)-]|\s+))|(?:[가-힣][.)])|(?:[①-⑳])|(?:[㉠-㉭]))\s*(.*)$/,
+  )
   if (!match) return null
   const 번호 = match[1].trim()
   return { 번호, 계층: numberingLevel(번호), 제목: (match[2] || '').slice(0, 80).trim() }
@@ -994,13 +996,18 @@ function detectNumbering(text) {
 
 function numberingLevel(no) {
   const value = String(no || '').trim()
+  if (/^제\s*\d+\s*조/.test(value)) return 1
+  if (/^\d+(?:[.-]\d+)+(?:[-.)]?[가-힣])?[.)]?$/.test(value)) {
+    const numericPart = value.match(/^\d+(?:[.-]\d+)*/)?.[0] || value
+    const depth = numericPart.split(/[.-]/).filter(Boolean).length
+    return /[가-힣][.)]?$/.test(value) ? depth + 1 : depth
+  }
   if (/^\d+[.]$/.test(value)) return 1
   if (/^[가-힣][.]$/.test(value)) return 2
   if (/^\d+[)]$/.test(value)) return 3
   if (/^[가-힣][)]$/.test(value)) return 4
   if (/^[①-⑳]$/.test(value)) return 4
   if (/^[㉠-㉭]$/.test(value)) return 5
-  if (/^제\s*\d+\s*조/.test(value)) return 1
   if (/^\d+$/.test(value)) return 1
   return 9
 }
