@@ -590,13 +590,27 @@ function convertHwpBufferToHtml(buffer) {
 from contextlib import closing
 from hwp5.xmlmodel import Hwp5File
 from hwp5.hwp5html import HTMLTransform
-import io
+import os
 import sys
+import tempfile
 
 with closing(Hwp5File(sys.argv[1])) as hwp5file:
-    out = io.BytesIO()
-    HTMLTransform().transform_hwp5_to_xhtml(hwp5file, out)
-    sys.stdout.buffer.write(out.getvalue())
+    with tempfile.TemporaryDirectory() as outdir:
+        HTMLTransform().transform_hwp5_to_dir(hwp5file, outdir)
+        html_path = os.path.join(outdir, 'index.xhtml')
+        css_path = os.path.join(outdir, 'styles.css')
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html = f.read()
+        css = ''
+        if os.path.exists(css_path):
+            with open(css_path, 'r', encoding='utf-8') as f:
+                css = f.read()
+        if css:
+            html = html.replace(
+                '<link rel="stylesheet" href="styles.css" type="text/css" />',
+                '<style type="text/css">\\n' + css + '\\n</style>',
+            )
+        sys.stdout.buffer.write(html.encode('utf-8'))
 `
     const child = spawn(process.env.PYTHON || 'python', ['-c', script, hwpPath], {
       windowsHide: true,
@@ -630,24 +644,31 @@ with closing(Hwp5File(sys.argv[1])) as hwp5file:
 }
 
 function wrapConvertedHwpHtml(html, name) {
+  const hwpStyles = extractStyleBlocks(html)
   return `<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(name)}</title>
   <style>
-    body { margin: 0; padding: 28px; background: #fff; color: #111827; font-family: "Malgun Gothic", Arial, sans-serif; }
+    body { margin: 0; padding: 24px; background: #fff; color: #111827; font-family: "Malgun Gothic", Arial, sans-serif; }
     .hwp-preview-title { margin: 0 0 18px; padding-bottom: 10px; border-bottom: 1px solid #d7e0ea; color: #1f3f60; font-size: 15px; }
-    table { border-collapse: collapse; }
-    td, th { border-color: #6b7280; }
+    .hwp-preview-body { overflow: auto; }
     img { max-width: 100%; }
   </style>
+  ${hwpStyles}
 </head>
 <body>
   <h1 class="hwp-preview-title">${escapeHtml(name)}</h1>
-  ${extractBodyHtml(html)}
+  <main class="hwp-preview-body">${extractBodyHtml(html)}</main>
 </body>
 </html>`
+}
+
+function extractStyleBlocks(html) {
+  return Array.from(String(html || '').matchAll(/<style\b[^>]*>[\s\S]*?<\/style>/gi))
+    .map((match) => match[0])
+    .join('\n')
 }
 
 function extractBodyHtml(html) {
